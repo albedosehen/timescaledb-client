@@ -12,6 +12,9 @@
 !src/
 !src/**
 
+!tests/
+!tests/**
+
 !.gitignore
 !deno.json
 !deno.jsonc
@@ -21,4 +24,4 @@
 !README.md
 !mod.ts
 
-!*.md
+// !*.md
