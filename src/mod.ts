@@ -16,64 +16,43 @@ export type { TimescaleClientConfig } from './client.ts'
 import type { TimescaleClient as TimescaleClientType } from './client.ts'
 
 // Factory functions for client creation
-export {
-  ClientFactory,
-  ClientPresets,
-  ClientUtils
-} from './factory.ts'
+export { ClientFactory, ClientPresets, ClientUtils } from './factory.ts'
 export type { ClientFactoryOptions } from './factory.ts'
 
 // ==================== CONFIGURATION ====================
 
 // Configuration builders and presets
-export {
-  ConfigBuilder,
-  ConfigPresets,
-  DEFAULT_CONFIG,
-  DEFAULT_CLIENT_OPTIONS,
-  ENV_VARS
-} from './types/config.ts'
+export { ConfigBuilder, ConfigPresets, DEFAULT_CLIENT_OPTIONS, DEFAULT_CONFIG, ENV_VARS } from './types/config.ts'
 
 // Configuration interfaces
-export type {
-  ConnectionConfig,
-  ClientOptions,
-  SSLConfig,
-  Logger
-} from './types/config.ts'
+export type { ClientOptions, ConnectionConfig, Logger, SSLConfig } from './types/config.ts'
 
 // ==================== CORE INTERFACES ====================
 
 // Time-series data types
 export type {
-  PriceTick,
-  Ohlc,
-  TimeRange,
-  TimeInterval,
   BatchResult,
   LatestPrice,
-  MultiSymbolLatest
+  MultiSymbolLatest,
+  Ohlc,
+  PriceTick,
+  TimeInterval,
+  TimeRange,
 } from './types/interfaces.ts'
 
 // Query and operation types
 export type {
-  QueryOptions,
-  StreamingOptions,
   AggregationFunction,
   PriceDelta,
-  VolatilityResult,
+  QueryOptions,
+  StreamingOptions,
   TopMover,
-  VolumeProfile
+  VolatilityResult,
+  VolumeProfile,
 } from './types/interfaces.ts'
 
 // Schema and metadata types
-export type {
-  SchemaInfo,
-  HypertableInfo,
-  IndexInfo,
-  RetentionPolicy,
-  HealthCheckResult
-} from './types/interfaces.ts'
+export type { HealthCheckResult, HypertableInfo, IndexInfo, RetentionPolicy, SchemaInfo } from './types/interfaces.ts'
 
 // Validation helper interface
 export type { ValidationHelpers } from './types/interfaces.ts'
@@ -82,13 +61,13 @@ export type { ValidationHelpers } from './types/interfaces.ts'
 
 // Error classes
 export {
-  ValidationError,
-  QueryError,
-  ConnectionError,
   BatchError,
-  TimeoutError,
   ConfigurationError,
-  SchemaError
+  ConnectionError,
+  QueryError,
+  SchemaError,
+  TimeoutError,
+  ValidationError,
 } from './types/errors.ts'
 
 // Error utilities
@@ -102,40 +81,28 @@ export type { ErrorContext } from './types/errors.ts'
 // Users should use: client.insertTick(), client.getTicks(), etc.
 
 // However, we export the option types for advanced use cases
-export type {
-  InsertOptions,
-  SelectOptions,
-  AggregationOptions,
-  AnalyticsOptions
-} from './queries/mod.ts'
+export type { AggregationOptions, AnalyticsOptions, InsertOptions, SelectOptions } from './queries/mod.ts'
 
 // Analytics result types
 export type {
-  TechnicalIndicatorResult,
-  RSIResult,
   BollingerBandsResult,
-  SupportResistanceLevel,
   CorrelationResult,
+  PriceDeltaResult,
+  RSIResult,
+  SupportResistanceLevel,
+  TechnicalIndicatorResult,
   TimeBucketResult,
   VwapResult,
-  PriceDeltaResult
 } from './queries/mod.ts'
 
 // ==================== DATABASE LAYER ====================
 
 // Database layer is primarily internal, but we export key types
 // for advanced users who want to create custom integrations
-export type {
-  DatabaseLayer,
-  SqlInstance,
-  ConnectionState
-} from './database/mod.ts'
+export type { ConnectionState, DatabaseLayer, SqlInstance } from './database/mod.ts'
 
 // Utility functions for connection testing
-export {
-  testConnection,
-  checkTimescaleDB
-} from './database/mod.ts'
+export { checkTimescaleDB, testConnection } from './database/mod.ts'
 
 // ==================== CONVENIENCE EXPORTS ====================
 
@@ -193,11 +160,11 @@ export const QuickStart = {
   cloud: async (connectionString: string, factoryOptions = {}): Promise<TimescaleClientType> => {
     const { ClientPresets } = await import('./factory.ts')
     return ClientPresets.cloud(connectionString, factoryOptions)
-  }
+  },
 }
 
 // Import types for validators
-import type { PriceTick, Ohlc, TimeRange } from './types/interfaces.ts'
+import type { Ohlc, PriceTick, TimeRange } from './types/interfaces.ts'
 
 /**
  * Validation utilities for time-series data
@@ -232,16 +199,16 @@ export const Validators = {
   isValidOhlc: (ohlc: Ohlc): boolean => {
     try {
       const prices = [ohlc.open, ohlc.high, ohlc.low, ohlc.close]
-      const allPricesValid = prices.every(p => typeof p === 'number' && p > 0 && isFinite(p))
+      const allPricesValid = prices.every((p) => typeof p === 'number' && p > 0 && isFinite(p))
       const relationshipsValid = ohlc.high >= Math.max(ohlc.open, ohlc.close) &&
-                                 ohlc.low <= Math.min(ohlc.open, ohlc.close)
+        ohlc.low <= Math.min(ohlc.open, ohlc.close)
 
       return !!(
         Validators.isValidPriceTick({
           symbol: ohlc.symbol,
           price: ohlc.close,
           volume: ohlc.volume,
-          timestamp: ohlc.timestamp
+          timestamp: ohlc.timestamp,
         }) &&
         allPricesValid &&
         relationshipsValid
@@ -265,7 +232,7 @@ export const Validators = {
     } catch {
       return false
     }
-  }
+  },
 }
 
 /**
@@ -286,7 +253,7 @@ export const Constants = {
     MAX_QUERY_LIMIT: 10000,
     DEFAULT_QUERY_LIMIT: 1000,
     MAX_SYMBOL_LENGTH: 20,
-    MAX_TIME_RANGE_DAYS: 365
+    MAX_TIME_RANGE_DAYS: 365,
   } as const,
 
   /**
@@ -298,8 +265,8 @@ export const Constants = {
     FIFTEEN_MINUTES: '15 minutes',
     HOUR: '1 hour',
     DAY: '1 day',
-    WEEK: '1 week'
-  } as const
+    WEEK: '1 week',
+  } as const,
 }
 
 // ==================== VERSION INFO ====================
@@ -317,7 +284,7 @@ export const CLIENT_INFO = {
   version: VERSION,
   description: 'Production-ready TimescaleDB client for TypeScript/Deno',
   repository: 'https://github.com/albedosehen/timescaledb-client',
-  author: 'Your Organization'
+  author: 'Your Organization',
 } as const
 
 // ==================== DEFAULT EXPORT ====================

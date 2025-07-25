@@ -1,4 +1,5 @@
 -- TimescaleDB Client - Custom Functions Script
+-- Dialect: postgresql
 -- This script creates custom PostgreSQL and TimescaleDB functions for financial data analysis
 
 -- =============================================================================

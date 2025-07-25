@@ -1,4 +1,5 @@
 -- TimescaleDB Client - Continuous Aggregates Script
+-- Dialect: postgresql
 -- This script creates continuous aggregates (materialized views) for pre-computed time-series analytics
 
 -- =============================================================================

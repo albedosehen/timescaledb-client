@@ -3,11 +3,7 @@
  */
 
 import type { ConnectionConfig } from '../../src/types/config.ts'
-import type { 
-  PriceTick,
-  BatchResult,
-  HealthCheckResult
-} from '../../src/types/interfaces.ts'
+import type { BatchResult, HealthCheckResult, PriceTick } from '../../src/types/interfaces.ts'
 
 /**
  * Mock SQL instance for testing
@@ -55,11 +51,11 @@ export class MockSqlFactory {
     const mockSql: MockSql = {
       query,
       params: values,
-      result: queryResult
+      result: queryResult,
     }
 
     this.queries.push(mockSql)
-    
+
     this.currentIndex = (this.currentIndex + 1) % Math.max(this.mockResults.length, 1)
 
     return Promise.resolve(queryResult)
@@ -72,7 +68,7 @@ export class MockSqlFactory {
     const mockSql: MockSql = {
       query,
       params,
-      result: queryResult
+      result: queryResult,
     }
 
     this.queries.push(mockSql)
@@ -90,7 +86,7 @@ export class MockSqlFactory {
         for (let i = 0; i < cursorResults.length; i += batchSize) {
           yield cursorResults.slice(i, i + batchSize)
         }
-      }
+      },
     }
   }
 
@@ -136,7 +132,7 @@ export function createTestConnectionConfig(overrides: Partial<ConnectionConfig> 
     username: 'test_user',
     password: 'test_password',
     ssl: false,
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -178,7 +174,7 @@ export class MockConfigFactory {
       username: 'prod_user',
       password: 'prod_password',
       ssl: true,
-      ...overrides
+      ...overrides,
     })
   }
 
@@ -193,7 +189,7 @@ export class MockConfigFactory {
       username: 'dev_user',
       password: 'dev_password',
       ssl: false,
-      ...overrides
+      ...overrides,
     })
   }
 }
@@ -207,7 +203,7 @@ export function createMockTick(overrides: Partial<PriceTick> = {}): PriceTick {
     price: 100,
     volume: 1.0,
     timestamp: new Date().toISOString(),
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -220,7 +216,7 @@ export function createMockBatchResult(overrides: Partial<BatchResult> = {}): Bat
     failed: 0,
     durationMs: 100,
     errors: [],
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -236,10 +232,10 @@ export function createMockHealthResult(overrides: Partial<HealthCheckResult> = {
     connection: {
       host: 'localhost',
       port: 5432,
-      ssl: false
+      ssl: false,
     },
     timestamp: new Date(),
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -248,16 +244,16 @@ export function createMockHealthResult(overrides: Partial<HealthCheckResult> = {
  */
 export function createMockDatabaseConnection() {
   return {
-    connect: async (config: ConnectionConfig) => {
+    connect: (config: ConnectionConfig) => {
       if (config.host === 'invalid-host') {
         throw new Error('Connection failed')
       }
-      return createMockSql()
+      return Promise.resolve(createMockSql())
     },
 
-    healthCheck: async () => createMockHealthResult(),
+    healthCheck: () => createMockHealthResult(),
 
-    close: async () => Promise.resolve()
+    close: () => Promise.resolve(),
   }
 }
 
@@ -270,7 +266,7 @@ export const INVALID_CONNECTIONS = {
     port: -1,
     database: '',
     username: '',
-    password: ''
+    password: '',
   },
 
   networkError: {
@@ -278,7 +274,7 @@ export const INVALID_CONNECTIONS = {
     port: 5432,
     database: 'test',
     username: 'test',
-    password: 'test'
+    password: 'test',
   },
 
   authenticationError: {
@@ -286,6 +282,6 @@ export const INVALID_CONNECTIONS = {
     port: 5432,
     database: 'test',
     username: 'invalid_user',
-    password: 'wrong_password'
-  }
+    password: 'wrong_password',
+  },
 } as const

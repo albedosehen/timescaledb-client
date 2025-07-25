@@ -1,4 +1,5 @@
 -- TimescaleDB Client - Core Table Creation Script
+-- Dialect: postgresql
 -- This script creates the main hypertables and supporting tables for time-series financial data storage
 
 -- Enable TimescaleDB extension

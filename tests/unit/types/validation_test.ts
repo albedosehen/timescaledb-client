@@ -1,23 +1,17 @@
 /**
  * Validation function tests for 100% coverage requirement
- * 
+ *
  * Tests all validation functions in src/types/ with comprehensive
  * edge cases and boundary conditions to achieve 100% coverage.
  */
 
-import { describe, it, beforeEach, afterEach } from '@std/testing/bdd'
-import { assertEquals, assertThrows, assert } from '@std/assert'
-import type { PriceTick, Ohlc, TimeRange } from '../../../src/types/interfaces.ts'
-import { 
-  ValidationError,
-  ErrorUtils 
-} from '../../../src/types/errors.ts'
+import { afterEach, beforeEach, describe, it } from '@std/testing/bdd'
+import { assert, assertEquals, assertThrows } from '@std/assert'
+import type { Ohlc, PriceTick, TimeRange } from '../../../src/types/interfaces.ts'
+import { ErrorUtils, ValidationError } from '../../../src/types/errors.ts'
 import { TestHelpers, TimingHelpers } from '../../utils/test_helpers.ts'
 import { FinancialAssertions } from '../../utils/assertion_helpers.ts'
-import {
-  SAMPLE_TICKS,
-  INVALID_TICKS
-} from '../../fixtures/sample_data.ts'
+import { INVALID_TICKS, SAMPLE_TICKS } from '../../fixtures/sample_data.ts'
 
 /**
  * Validation helper functions to test (these would be implemented in src/types/)
@@ -72,12 +66,12 @@ const MockValidation: ValidationHelpers = {
     if (!this.isValidPrice(ohlc.close)) return false
     if (ohlc.volume !== undefined && !this.isValidVolume(ohlc.volume)) return false
     if (!this.isValidTimestamp(ohlc.timestamp)) return false
-    
+
     // OHLC relationships
     if (ohlc.high < ohlc.low) return false
     if (ohlc.high < ohlc.open || ohlc.high < ohlc.close) return false
     if (ohlc.low > ohlc.open || ohlc.low > ohlc.close) return false
-    
+
     return true
   },
 
@@ -130,7 +124,7 @@ const MockValidation: ValidationHelpers = {
     if (!this.isValidTimeRange(range)) {
       throw new ValidationError('Invalid time range')
     }
-  }
+  },
 }
 
 describe('Validation Functions', () => {
@@ -148,32 +142,32 @@ describe('Validation Functions', () => {
     it('should accept valid symbols', () => {
       const validSymbols = [
         'BTCUSD',
-        'BTC_USD', 
+        'BTC_USD',
         'ETH',
         'A',
         'SYMBOL123',
-        'A'.repeat(20) // Max length
+        'A'.repeat(20), // Max length
       ]
 
-      validSymbols.forEach(symbol => {
+      validSymbols.forEach((symbol) => {
         assert(MockValidation.isValidSymbol(symbol), `Symbol '${symbol}' should be valid`)
       })
     })
 
     it('should reject invalid symbols', () => {
       const invalidSymbols = [
-        '',           // Empty
+        '', // Empty
         'a'.repeat(21), // Too long
-        'BTC-USD',    // Hyphen
-        'BTC USD',    // Space
-        'BTC.USD',    // Dot
-        'BTC@USD',    // Special character
-        123 as any,   // Non-string
-        null as any,  // Null
-        undefined as any // Undefined
+        'BTC-USD', // Hyphen
+        'BTC USD', // Space
+        'BTC.USD', // Dot
+        'BTC@USD', // Special character
+        123 as unknown as string, // Non-string
+        null as unknown as string, // Null
+        undefined as unknown as string, // Undefined
       ]
 
-      invalidSymbols.forEach(symbol => {
+      invalidSymbols.forEach((symbol) => {
         assert(!MockValidation.isValidSymbol(symbol), `Symbol '${symbol}' should be invalid`)
       })
     })
@@ -181,13 +175,13 @@ describe('Validation Functions', () => {
     it('should handle edge cases', () => {
       // Single character
       assert(MockValidation.isValidSymbol('A'))
-      
+
       // Exactly 20 characters
       assert(MockValidation.isValidSymbol('A'.repeat(20)))
-      
+
       // Mixed case (should be case insensitive)
       assert(MockValidation.isValidSymbol('BtCuSd'))
-      
+
       // Numbers and underscores
       assert(MockValidation.isValidSymbol('BTC_123'))
     })
@@ -196,32 +190,32 @@ describe('Validation Functions', () => {
   describe('isValidPrice', () => {
     it('should accept valid prices', () => {
       const validPrices = [
-        0.00000001,   // Very small positive
-        1,            // Integer
-        45000.50,     // Decimal
+        0.00000001, // Very small positive
+        1, // Integer
+        45000.50, // Decimal
         999999999.99, // Large number
-        Number.MAX_SAFE_INTEGER
+        Number.MAX_SAFE_INTEGER,
       ]
 
-      validPrices.forEach(price => {
+      validPrices.forEach((price) => {
         assert(MockValidation.isValidPrice(price), `Price ${price} should be valid`)
       })
     })
 
     it('should reject invalid prices', () => {
       const invalidPrices = [
-        0,            // Zero
-        -1,           // Negative
-        -0.01,        // Negative decimal
-        Infinity,     // Infinity
-        -Infinity,    // Negative infinity
-        NaN,          // NaN
-        '100' as any, // String
-        null as any,  // Null
-        undefined as any // Undefined
+        0, // Zero
+        -1, // Negative
+        -0.01, // Negative decimal
+        Infinity, // Infinity
+        -Infinity, // Negative infinity
+        NaN, // NaN
+        '100' as unknown as number, // String
+        null as unknown as number, // Null
+        undefined as unknown as number, // Undefined
       ]
 
-      invalidPrices.forEach(price => {
+      invalidPrices.forEach((price) => {
         assert(!MockValidation.isValidPrice(price), `Price ${price} should be invalid`)
       })
     })
@@ -229,10 +223,10 @@ describe('Validation Functions', () => {
     it('should handle floating point edge cases', () => {
       // Very small positive number
       assert(MockValidation.isValidPrice(Number.MIN_VALUE))
-      
+
       // Just above zero
       assert(MockValidation.isValidPrice(0.000000001))
-      
+
       // Maximum safe integer
       assert(MockValidation.isValidPrice(Number.MAX_SAFE_INTEGER))
     })
@@ -241,30 +235,30 @@ describe('Validation Functions', () => {
   describe('isValidVolume', () => {
     it('should accept valid volumes', () => {
       const validVolumes = [
-        0,            // Zero volume allowed
-        0.001,        // Small volume
-        1000000,      // Large volume
-        Number.MAX_SAFE_INTEGER
+        0, // Zero volume allowed
+        0.001, // Small volume
+        1000000, // Large volume
+        Number.MAX_SAFE_INTEGER,
       ]
 
-      validVolumes.forEach(volume => {
+      validVolumes.forEach((volume) => {
         assert(MockValidation.isValidVolume(volume), `Volume ${volume} should be valid`)
       })
     })
 
     it('should reject invalid volumes', () => {
       const invalidVolumes = [
-        -1,           // Negative
-        -0.01,        // Negative decimal
-        Infinity,     // Infinity
-        -Infinity,    // Negative infinity
-        NaN,          // NaN
-        '100' as any, // String
-        null as any,  // Null
-        undefined as any // Undefined
+        -1, // Negative
+        -0.01, // Negative decimal
+        Infinity, // Infinity
+        -Infinity, // Negative infinity
+        NaN, // NaN
+        '100' as unknown as number, // String
+        null as unknown as number, // Null
+        undefined as unknown as number, // Undefined
       ]
 
-      invalidVolumes.forEach(volume => {
+      invalidVolumes.forEach((volume) => {
         assert(!MockValidation.isValidVolume(volume), `Volume ${volume} should be invalid`)
       })
     })
@@ -272,10 +266,10 @@ describe('Validation Functions', () => {
     it('should handle volume edge cases', () => {
       // Zero should be valid (no volume trades)
       assert(MockValidation.isValidVolume(0))
-      
+
       // Very small volume
       assert(MockValidation.isValidVolume(Number.MIN_VALUE))
-      
+
       // Large volume
       assert(MockValidation.isValidVolume(999999999.999))
     })
@@ -288,30 +282,30 @@ describe('Validation Functions', () => {
         '2024-01-15T10:00:00Z',
         '2024-12-31T23:59:59.999Z',
         '1970-01-01T00:00:00.000Z', // Unix epoch
-        new Date().toISOString()
+        new Date().toISOString(),
       ]
 
-      validTimestamps.forEach(timestamp => {
+      validTimestamps.forEach((timestamp) => {
         assert(MockValidation.isValidTimestamp(timestamp), `Timestamp '${timestamp}' should be valid`)
       })
     })
 
     it('should reject invalid timestamps', () => {
       const invalidTimestamps = [
-        '',                    // Empty
-        'not-a-date',         // Invalid format
+        '', // Empty
+        'not-a-date', // Invalid format
         '2024-13-01T10:00:00Z', // Invalid month
         '2024-01-32T10:00:00Z', // Invalid day
         '2024-01-01T25:00:00Z', // Invalid hour
         '2024-01-01T10:60:00Z', // Invalid minute
         '2024-01-01T10:00:60Z', // Invalid second
-        123 as any,           // Number
-        null as any,          // Null
-        undefined as any      // Undefined
+        String(123), // Number converted to string
+        null as unknown as number, // Null
+        undefined as unknown as number, // Undefined
       ]
 
-      invalidTimestamps.forEach(timestamp => {
-        assert(!MockValidation.isValidTimestamp(timestamp), `Timestamp '${timestamp}' should be invalid`)
+      invalidTimestamps.forEach((timestamp) => {
+        assert(!MockValidation.isValidTimestamp(String(timestamp)), `Timestamp '${timestamp}' should be invalid`)
       })
     })
 
@@ -319,10 +313,10 @@ describe('Validation Functions', () => {
       // Various ISO 8601 formats
       assert(MockValidation.isValidTimestamp('2024-01-15T10:00:00.000Z'))
       assert(MockValidation.isValidTimestamp('2024-01-15T10:00:00Z'))
-      
+
       // Different time zones (if supported by Date constructor)
       assert(MockValidation.isValidTimestamp('2024-01-15T10:00:00+05:00'))
-      
+
       // Edge dates
       assert(MockValidation.isValidTimestamp('1970-01-01T00:00:00.000Z'))
       assert(MockValidation.isValidTimestamp('2099-12-31T23:59:59.999Z'))
@@ -338,17 +332,17 @@ describe('Validation Functions', () => {
           open: 45000,
           high: 45200,
           low: 44800,
-          close: 45100
+          close: 45100,
         },
         {
           symbol: 'ETHUSD',
           timestamp: '2024-01-15T10:00:00.000Z',
           open: 3000,
           high: 3000, // High equals open
-          low: 3000,  // Low equals open  
+          low: 3000, // Low equals open
           close: 3000, // All same price
-          volume: 100
-        }
+          volume: 100,
+        },
       ]
 
       validOhlc.forEach((ohlc, i) => {
@@ -362,7 +356,10 @@ describe('Validation Functions', () => {
         {
           symbol: '',
           timestamp: '2024-01-15T10:00:00.000Z',
-          open: 45000, high: 45200, low: 44800, close: 45100
+          open: 45000,
+          high: 45200,
+          low: 44800,
+          close: 45100,
         },
         // Invalid price relationships
         {
@@ -371,7 +368,7 @@ describe('Validation Functions', () => {
           open: 45000,
           high: 44000, // High < Open
           low: 44800,
-          close: 45100
+          close: 45100,
         },
         // High < Low
         {
@@ -380,7 +377,7 @@ describe('Validation Functions', () => {
           open: 45000,
           high: 44000,
           low: 45000,
-          close: 44500
+          close: 44500,
         },
         // Negative prices
         {
@@ -389,15 +386,18 @@ describe('Validation Functions', () => {
           open: -45000,
           high: 45200,
           low: 44800,
-          close: 45100
+          close: 45100,
         },
         // Invalid volume
         {
           symbol: 'BTCUSD',
           timestamp: '2024-01-15T10:00:00.000Z',
-          open: 45000, high: 45200, low: 44800, close: 45100,
-          volume: -10
-        }
+          open: 45000,
+          high: 45200,
+          low: 44800,
+          close: 45100,
+          volume: -10,
+        },
       ]
 
       invalidOhlcData.forEach((ohlc, i) => {
@@ -409,27 +409,30 @@ describe('Validation Functions', () => {
       // Test all boundary conditions
       const testCases = [
         { open: 100, high: 100, low: 100, close: 100, valid: true }, // All equal
-        { open: 100, high: 110, low: 90, close: 105, valid: true },  // Normal case
+        { open: 100, high: 110, low: 90, close: 105, valid: true }, // Normal case
         { open: 100, high: 110, low: 100, close: 100, valid: true }, // Low = Open
-        { open: 100, high: 100, low: 90, close: 100, valid: true },  // High = Open
-        { open: 100, high: 110, low: 90, close: 110, valid: true },  // Close = High
-        { open: 100, high: 110, low: 90, close: 90, valid: true },   // Close = Low
+        { open: 100, high: 100, low: 90, close: 100, valid: true }, // High = Open
+        { open: 100, high: 110, low: 90, close: 110, valid: true }, // Close = High
+        { open: 100, high: 110, low: 90, close: 90, valid: true }, // Close = Low
         { open: 100, high: 90, low: 110, close: 105, valid: false }, // High < Low
-        { open: 100, high: 90, low: 80, close: 85, valid: false },   // High < Open
-        { open: 100, high: 120, low: 110, close: 105, valid: false } // Low > Open
+        { open: 100, high: 90, low: 80, close: 85, valid: false }, // High < Open
+        { open: 100, high: 120, low: 110, close: 105, valid: false }, // Low > Open
       ]
 
       testCases.forEach(({ open, high, low, close, valid }, i) => {
         const ohlc: Ohlc = {
           symbol: 'TEST',
           timestamp: '2024-01-15T10:00:00.000Z',
-          open, high, low, close
+          open,
+          high,
+          low,
+          close,
         }
-        
+
         assertEquals(
-          MockValidation.isValidOhlc(ohlc), 
+          MockValidation.isValidOhlc(ohlc),
           valid,
-          `OHLC test case ${i} (O:${open} H:${high} L:${low} C:${close}) should be ${valid ? 'valid' : 'invalid'}`
+          `OHLC test case ${i} (O:${open} H:${high} L:${low} C:${close}) should be ${valid ? 'valid' : 'invalid'}`,
         )
       })
     })
@@ -440,18 +443,18 @@ describe('Validation Functions', () => {
       const validRanges: TimeRange[] = [
         {
           from: new Date('2024-01-15T10:00:00.000Z'),
-          to: new Date('2024-01-15T11:00:00.000Z')
+          to: new Date('2024-01-15T11:00:00.000Z'),
         },
         {
           from: new Date('2024-01-15T10:00:00.000Z'),
           to: new Date('2024-01-15T10:00:01.000Z'), // 1 second range
-          limit: 100
+          limit: 100,
         },
         {
           from: new Date('2024-01-01T00:00:00.000Z'),
           to: new Date('2024-12-31T23:59:59.999Z'),
-          limit: 10000 // Max limit
-        }
+          limit: 10000, // Max limit
+        },
       ]
 
       validRanges.forEach((range, i) => {
@@ -464,33 +467,33 @@ describe('Validation Functions', () => {
         // From >= To
         {
           from: new Date('2024-01-15T11:00:00.000Z'),
-          to: new Date('2024-01-15T10:00:00.000Z')
+          to: new Date('2024-01-15T10:00:00.000Z'),
         },
         // Same time
         {
           from: new Date('2024-01-15T10:00:00.000Z'),
-          to: new Date('2024-01-15T10:00:00.000Z')
+          to: new Date('2024-01-15T10:00:00.000Z'),
         },
         // Invalid limit
         {
           from: new Date('2024-01-15T10:00:00.000Z'),
           to: new Date('2024-01-15T11:00:00.000Z'),
-          limit: 0
+          limit: 0,
         },
         // Limit too high
         {
           from: new Date('2024-01-15T10:00:00.000Z'),
           to: new Date('2024-01-15T11:00:00.000Z'),
-          limit: 20000
+          limit: 20000,
         },
         // Missing from
         {
-          to: new Date('2024-01-15T11:00:00.000Z')
-        } as any,
+          to: new Date('2024-01-15T11:00:00.000Z'),
+        } as unknown as TimeRange,
         // Missing to
         {
-          from: new Date('2024-01-15T10:00:00.000Z')
-        } as any
+          from: new Date('2024-01-15T10:00:00.000Z'),
+        } as unknown as TimeRange,
       ]
 
       invalidRanges.forEach((range, i) => {
@@ -503,15 +506,15 @@ describe('Validation Functions', () => {
     it('should accept valid batch sizes', () => {
       const validSizes = [1, 100, 1000, 5000, 10000]
 
-      validSizes.forEach(size => {
+      validSizes.forEach((size) => {
         assert(MockValidation.isValidBatchSize(size), `Batch size ${size} should be valid`)
       })
     })
 
     it('should reject invalid batch sizes', () => {
-      const invalidSizes = [0, -1, 10001, 50000, NaN, Infinity, '100' as any]
+      const invalidSizes = [0, -1, 10001, 50000, NaN, Infinity, '100' as unknown as number]
 
-      invalidSizes.forEach(size => {
+      invalidSizes.forEach((size) => {
         assert(!MockValidation.isValidBatchSize(size), `Batch size ${size} should be invalid`)
       })
     })
@@ -530,7 +533,7 @@ describe('Validation Functions', () => {
         assertThrows(
           () => MockValidation.validateTick(tick as PriceTick),
           ValidationError,
-          `Invalid tick ${key} should throw ValidationError`
+          `Invalid tick ${key} should throw ValidationError`,
         )
       })
     })
@@ -584,10 +587,10 @@ describe('Validation Functions', () => {
       const validBatches = [
         [1],
         new Array(100).fill({}),
-        new Array(10000).fill({})
+        new Array(10000).fill({}),
       ]
 
-      validBatches.forEach(batch => {
+      validBatches.forEach((batch) => {
         MockValidation.validateBatchSize(batch)
       })
     })
@@ -596,15 +599,15 @@ describe('Validation Functions', () => {
       const invalidBatches = [
         [], // Empty
         new Array(20000).fill({}), // Too large
-        'not an array' as any, // Not array
-        null as any, // Null
-        undefined as any // Undefined
+        'not an array' as unknown as unknown[], // Not array
+        null as unknown as unknown[], // Null
+        undefined as unknown as unknown[], // Undefined
       ]
 
-      invalidBatches.forEach(batch => {
+      invalidBatches.forEach((batch) => {
         assertThrows(
           () => MockValidation.validateBatchSize(batch),
-          ValidationError
+          ValidationError,
         )
       })
     })
@@ -615,11 +618,11 @@ describe('Validation Functions', () => {
       // Very small numbers
       assert(MockValidation.isValidPrice(Number.MIN_VALUE))
       assert(MockValidation.isValidVolume(Number.MIN_VALUE))
-      
+
       // Very large numbers
       assert(MockValidation.isValidPrice(Number.MAX_SAFE_INTEGER))
       assert(MockValidation.isValidVolume(Number.MAX_SAFE_INTEGER))
-      
+
       // Floating point precision
       const precisePrice = 0.123456789012345
       assert(MockValidation.isValidPrice(precisePrice))
@@ -629,10 +632,10 @@ describe('Validation Functions', () => {
       // Empty string
       assert(!MockValidation.isValidSymbol(''))
       assert(!MockValidation.isValidTimestamp(''))
-      
+
       // Very long strings
       assert(!MockValidation.isValidSymbol('A'.repeat(1000)))
-      
+
       // Special characters in different contexts
       assert(!MockValidation.isValidSymbol('BTC USD')) // Space
       assert(!MockValidation.isValidSymbol('BTC-USD')) // Hyphen
@@ -642,32 +645,32 @@ describe('Validation Functions', () => {
     it('should handle date edge cases', () => {
       // Unix epoch
       assert(MockValidation.isValidTimestamp('1970-01-01T00:00:00.000Z'))
-      
+
       // Far future
       assert(MockValidation.isValidTimestamp('2099-12-31T23:59:59.999Z'))
-      
+
       // Leap year dates
       assert(MockValidation.isValidTimestamp('2024-02-29T12:00:00.000Z'))
-      
+
       // Invalid leap year
       assert(!MockValidation.isValidTimestamp('2100-02-29T12:00:00.000Z'))
     })
 
     it('should handle type coercion attempts', () => {
       // Numbers as strings
-      assert(!MockValidation.isValidPrice('100' as any))
-      assert(!MockValidation.isValidVolume('50' as any))
-      
+      assert(!MockValidation.isValidPrice('100' as unknown as number))
+      assert(!MockValidation.isValidVolume('50' as unknown as number))
+
       // Booleans
-      assert(!MockValidation.isValidPrice(true as any))
-      assert(!MockValidation.isValidSymbol(false as any))
-      
+      assert(!MockValidation.isValidPrice(true as unknown as number))
+      assert(!MockValidation.isValidSymbol(false as unknown as string))
+
       // Objects
-      assert(!MockValidation.isValidPrice({} as any))
-      assert(!MockValidation.isValidSymbol({} as any))
-      
+      assert(!MockValidation.isValidPrice({} as unknown as number))
+      assert(!MockValidation.isValidSymbol({} as unknown as string))
+
       // Arrays
-      assert(!MockValidation.isValidPrice([] as any))
+      assert(!MockValidation.isValidPrice([] as unknown as number))
     })
   })
 
@@ -677,15 +680,16 @@ describe('Validation Functions', () => {
         symbol: 'BTCUSD',
         price: 45000,
         volume: 1.0,
-        timestamp: '2024-01-15T10:00:00.000Z'
+        timestamp: '2024-01-15T10:00:00.000Z',
       })
 
       await TimingHelpers.assertExecutionTime(
-        async () => {
-          largeBatch.forEach(tick => MockValidation.validateTick(tick))
+        () => {
+          largeBatch.forEach((tick) => MockValidation.validateTick(tick))
+          return Promise.resolve()
         },
         1000, // Should complete within 1 second
-        'Large batch validation performance'
+        'Large batch validation performance',
       )
     })
 
@@ -696,20 +700,21 @@ describe('Validation Functions', () => {
       }
 
       await TimingHelpers.assertExecutionTime(
-        async () => {
+        () => {
           for (let i = 0; i < 1000; i++) {
             MockValidation.validateTick(tick)
           }
+          return Promise.resolve()
         },
         100, // Should complete within 100ms
-        'Individual validation performance'
+        'Individual validation performance',
       )
     })
   })
 
   describe('Integration with Custom Assertions', () => {
     it('should work with FinancialAssertions', () => {
-      SAMPLE_TICKS.forEach(tick => {
+      SAMPLE_TICKS.forEach((tick) => {
         FinancialAssertions.assertValidPriceTick(tick)
       })
     })

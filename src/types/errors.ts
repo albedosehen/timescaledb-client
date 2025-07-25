@@ -44,11 +44,11 @@ export class TimescaleClientError extends Error implements ITimescaleClientError
     message: string,
     public readonly code: string,
     public readonly rootCause?: Error,
-    public readonly details?: Record<string, unknown>
+    public readonly details?: Record<string, unknown>,
   ) {
     super(message)
     this.name = 'TimescaleClientError'
-    
+
     // Maintain proper stack trace
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, TimescaleClientError)
@@ -67,11 +67,13 @@ export class TimescaleClientError extends Error implements ITimescaleClientError
       code: this.code,
       details: this.details,
       stack: this.stack,
-      rootCause: this.rootCause ? {
-        name: this.rootCause.name,
-        message: this.rootCause.message,
-        stack: this.rootCause.stack
-      } : undefined
+      rootCause: this.rootCause
+        ? {
+          name: this.rootCause.name,
+          message: this.rootCause.message,
+          stack: this.rootCause.stack,
+        }
+        : undefined,
     }
   }
 
@@ -121,7 +123,7 @@ export class ValidationError extends TimescaleClientError {
   constructor(
     message: string,
     public readonly field?: string,
-    public readonly value?: unknown
+    public readonly value?: unknown,
   ) {
     super(message, 'VALIDATION_ERROR', undefined, { field, value })
     this.name = 'ValidationError'
@@ -152,7 +154,7 @@ export class QueryError extends TimescaleClientError {
     message: string,
     rootCause?: Error,
     public readonly query?: string,
-    public readonly parameters?: unknown[]
+    public readonly parameters?: unknown[],
   ) {
     super(message, 'QUERY_ERROR', rootCause, { query, parameters })
     this.name = 'QueryError'
@@ -178,7 +180,7 @@ export class SchemaError extends TimescaleClientError {
   constructor(
     message: string,
     public readonly tableName?: string,
-    public readonly expectedSchema?: string
+    public readonly expectedSchema?: string,
   ) {
     super(message, 'SCHEMA_ERROR', undefined, { tableName, expectedSchema })
     this.name = 'SchemaError'
@@ -204,7 +206,7 @@ export class ConfigurationError extends TimescaleClientError {
   constructor(
     message: string,
     public readonly configField?: string,
-    public readonly configValue?: unknown
+    public readonly configValue?: unknown,
   ) {
     super(message, 'CONFIGURATION_ERROR', undefined, { configField, configValue })
     this.name = 'ConfigurationError'
@@ -230,7 +232,7 @@ export class TimeoutError extends TimescaleClientError {
   constructor(
     message: string,
     public readonly timeoutMs: number,
-    public readonly operation?: string
+    public readonly operation?: string,
   ) {
     super(message, 'TIMEOUT_ERROR', undefined, { timeoutMs, operation })
     this.name = 'TimeoutError'
@@ -258,7 +260,7 @@ export class BatchError extends TimescaleClientError {
     message: string,
     public readonly processedCount: number,
     public readonly failedCount: number,
-    public readonly errors: Error[]
+    public readonly errors: Error[],
   ) {
     super(message, 'BATCH_ERROR', undefined, { processedCount, failedCount, errors })
     this.name = 'BatchError'
@@ -276,7 +278,7 @@ export class BatchError extends TimescaleClientError {
 export class RateLimitError extends TimescaleClientError {
   constructor(
     message: string,
-    public readonly retryAfterMs?: number
+    public readonly retryAfterMs?: number,
   ) {
     super(message, 'RATE_LIMIT_ERROR', undefined, { retryAfterMs })
     this.name = 'RateLimitError'
@@ -298,7 +300,7 @@ export const ERROR_CODES = {
   CONNECTION_ERROR: 'CONNECTION_ERROR',
   CONNECTION_TIMEOUT: 'CONNECTION_TIMEOUT',
   CONNECTION_REFUSED: 'CONNECTION_REFUSED',
-  
+
   // Validation errors
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   INVALID_SYMBOL: 'INVALID_SYMBOL',
@@ -308,29 +310,29 @@ export const ERROR_CODES = {
   INVALID_OHLC: 'INVALID_OHLC',
   INVALID_TIME_RANGE: 'INVALID_TIME_RANGE',
   BATCH_SIZE_EXCEEDED: 'BATCH_SIZE_EXCEEDED',
-  
+
   // Query errors
   QUERY_ERROR: 'QUERY_ERROR',
   QUERY_TIMEOUT: 'QUERY_TIMEOUT',
   SYNTAX_ERROR: 'SYNTAX_ERROR',
   CONSTRAINT_VIOLATION: 'CONSTRAINT_VIOLATION',
-  
+
   // Schema errors
   SCHEMA_ERROR: 'SCHEMA_ERROR',
   TABLE_NOT_FOUND: 'TABLE_NOT_FOUND',
   HYPERTABLE_NOT_FOUND: 'HYPERTABLE_NOT_FOUND',
   INDEX_MISSING: 'INDEX_MISSING',
-  
+
   // Configuration errors
   CONFIGURATION_ERROR: 'CONFIGURATION_ERROR',
   INVALID_CONNECTION_STRING: 'INVALID_CONNECTION_STRING',
   MISSING_CREDENTIALS: 'MISSING_CREDENTIALS',
   SSL_CONFIG_ERROR: 'SSL_CONFIG_ERROR',
-  
+
   // Operational errors
   TIMEOUT_ERROR: 'TIMEOUT_ERROR',
   BATCH_ERROR: 'BATCH_ERROR',
-  RATE_LIMIT_ERROR: 'RATE_LIMIT_ERROR'
+  RATE_LIMIT_ERROR: 'RATE_LIMIT_ERROR',
 } as const
 
 /**
@@ -431,8 +433,8 @@ export class ErrorUtils {
 
     // Retry connection errors, timeouts, and some query errors
     return error instanceof ConnectionError ||
-           error instanceof TimeoutError ||
-           (error instanceof QueryError && ErrorUtils.isTransientPostgresError(error.rootCause))
+      error instanceof TimeoutError ||
+      (error instanceof QueryError && ErrorUtils.isTransientPostgresError(error.rootCause))
   }
 
   /**
@@ -444,7 +446,7 @@ export class ErrorUtils {
     }
 
     const pgError = error as PostgresError
-    
+
     // Connection-related errors
     const transientCodes = [
       '08000', // connection_exception
@@ -454,7 +456,7 @@ export class ErrorUtils {
       '08004', // sqlserver_rejected_establishment_of_sqlconnection
       '57P01', // admin_shutdown
       '57P02', // crash_shutdown
-      '57P03'  // cannot_connect_now
+      '57P03', // cannot_connect_now
     ]
 
     return transientCodes.includes(pgError.code || '')
@@ -484,12 +486,12 @@ export class ErrorUtils {
    */
   static createContext(
     operation?: string,
-    additionalContext?: Partial<ErrorContext>
+    additionalContext?: Partial<ErrorContext>,
   ): ErrorContext {
     return {
       operation,
       timestamp: new Date(),
-      ...additionalContext
+      ...additionalContext,
     }
   }
 }

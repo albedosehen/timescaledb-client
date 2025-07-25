@@ -1,4 +1,5 @@
 -- TimescaleDB Client - Data Retention Policies Script
+-- Dialect: postgresql
 -- This script configures automated data retention policies for time-series data management
 
 -- =============================================================================

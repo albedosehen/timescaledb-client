@@ -1,6 +1,6 @@
 /**
  * Configuration interfaces for TimescaleDB client initialization
- * 
+ *
  * These interfaces define how clients can be configured for different deployment
  * scenarios while maintaining security and performance best practices.
  */
@@ -11,74 +11,74 @@
 export interface SSLConfig {
   /** Whether to reject unauthorized SSL certificates (default: true in production) */
   readonly rejectUnauthorized?: boolean
-  
+
   /** Certificate Authority certificate */
   readonly ca?: string
-  
+
   /** Client certificate */
   readonly cert?: string
-  
+
   /** Client private key */
   readonly key?: string
-  
+
   /** SSL mode preference */
   readonly mode?: 'disable' | 'allow' | 'prefer' | 'require' | 'verify-ca' | 'verify-full'
 }
 
 /**
  * Connection configuration options
- * 
+ *
  * Supports both connection string and individual parameter approaches
  */
 export interface ConnectionConfig {
   /** Complete PostgreSQL connection string (takes precedence over individual params) */
   readonly connectionString?: string
-  
+
   /** Database host(s) - can be string or array for multiple hosts */
   readonly host?: string | string[]
-  
+
   /** Database port(s) - can be number or array for multiple ports */
   readonly port?: number | number[]
-  
+
   /** Unix socket path (alternative to host/port) */
   readonly path?: string
-  
+
   /** Database name */
   readonly database?: string
-  
+
   /** Username for authentication */
   readonly username?: string
-  
+
   /** Password for authentication (can be async function for dynamic passwords) */
   readonly password?: string | (() => Promise<string>)
-  
+
   /** SSL configuration */
   readonly ssl?: boolean | SSLConfig
-  
+
   /** Maximum number of connections in pool (default: 10) */
   readonly maxConnections?: number
-  
+
   /** Maximum connection lifetime in seconds (default: null - no limit) */
   readonly maxLifetime?: number | null
-  
+
   /** Idle connection timeout in seconds (default: 0 - keep alive) */
   readonly idleTimeout?: number
-  
+
   /** Connection timeout in seconds (default: 30) */
   readonly connectTimeout?: number
-  
+
   /** Application name for connection identification */
   readonly applicationName?: string
-  
+
   /** Enable debug logging */
   readonly debug?: boolean
-  
+
   /** Custom notice handler (default: console.log if debug=true) */
   readonly onNotice?: (notice: string) => void
-  
+
   /** Custom parameter change handler */
   readonly onParameter?: (key: string, value: string) => void
-  
+
   /** Transform functions for data handling */
   readonly transform?: {
     /** How to handle undefined values (default: null) */
@@ -90,13 +90,13 @@ export interface ConnectionConfig {
     /** Row transformation */
     readonly row?: (row: Record<string, unknown>) => Record<string, unknown>
   }
-  
+
   /** Target session attributes for read/write routing */
   readonly targetSessionAttrs?: 'any' | 'read-write' | 'read-only' | 'primary' | 'standby' | 'prefer-standby'
-  
+
   /** Whether to fetch types on connect (default: true) */
   readonly fetchTypes?: boolean
-  
+
   /** Whether to use prepared statements (default: true) */
   readonly prepare?: boolean
 }
@@ -107,40 +107,40 @@ export interface ConnectionConfig {
 export interface ClientOptions {
   /** Default batch size for bulk operations (default: 1000, max: 10000) */
   readonly defaultBatchSize?: number
-  
+
   /** Maximum number of retry attempts for failed operations (default: 3) */
   readonly maxRetries?: number
-  
+
   /** Base delay for retry backoff in milliseconds (default: 1000) */
   readonly retryBaseDelay?: number
-  
+
   /** Default query timeout in milliseconds (default: 30000) */
   readonly queryTimeout?: number
-  
+
   /** Whether to automatically create required hypertables (default: false) */
   readonly autoCreateTables?: boolean
-  
+
   /** Whether to automatically create indexes (default: true) */
   readonly autoCreateIndexes?: boolean
-  
+
   /** Default time range limit for queries (default: 1000, max: 10000) */
   readonly defaultLimit?: number
-  
+
   /** Whether to validate input data (default: true) */
   readonly validateInputs?: boolean
-  
+
   /** Whether to collect query statistics (default: false) */
   readonly collectStats?: boolean
-  
+
   /** Custom logger implementation */
   readonly logger?: Logger
-  
+
   /** Timezone for timestamp handling (default: 'UTC') */
   readonly timezone?: string
-  
+
   /** Whether to use streaming for large result sets (default: true for >1000 rows) */
   readonly useStreaming?: boolean
-  
+
   /** Threshold for switching to streaming mode (default: 1000 rows) */
   readonly streamingThreshold?: number
 }
@@ -165,7 +165,7 @@ export interface Logger {
 export const ENV_VARS = {
   CONNECTION_STRING: 'TIMESCALE_CONNECTION_STRING',
   HOST: 'PGHOST',
-  PORT: 'PGPORT', 
+  PORT: 'PGPORT',
   DATABASE: 'PGDATABASE',
   USERNAME: 'PGUSER',
   PASSWORD: 'PGPASSWORD',
@@ -175,13 +175,15 @@ export const ENV_VARS = {
   SSL_ROOT_CERT: 'PGSSLROOTCERT',
   APPLICATION_NAME: 'PGAPPNAME',
   CONNECT_TIMEOUT: 'PGCONNECT_TIMEOUT',
-  DEBUG: 'TIMESCALE_DEBUG'
+  DEBUG: 'TIMESCALE_DEBUG',
 } as const
 
 /**
  * Default configuration values
  */
-export const DEFAULT_CONFIG: Required<Omit<ConnectionConfig, 'connectionString' | 'password' | 'onNotice' | 'onParameter'>> = {
+export const DEFAULT_CONFIG: Required<
+  Omit<ConnectionConfig, 'connectionString' | 'password' | 'onNotice' | 'onParameter'>
+> = {
   host: 'localhost',
   port: 5432,
   path: '',
@@ -195,11 +197,11 @@ export const DEFAULT_CONFIG: Required<Omit<ConnectionConfig, 'connectionString' 
   applicationName: 'timescaledb-client',
   debug: false,
   transform: {
-    undefined: null
+    undefined: null,
   },
   targetSessionAttrs: 'any',
   fetchTypes: true,
-  prepare: true
+  prepare: true,
 } as const
 
 /**
@@ -217,7 +219,7 @@ export const DEFAULT_CLIENT_OPTIONS: Required<Omit<ClientOptions, 'logger'>> = {
   collectStats: false,
   timezone: 'UTC',
   useStreaming: true,
-  streamingThreshold: 1000
+  streamingThreshold: 1000,
 } as const
 
 /**
@@ -320,7 +322,7 @@ export class ConfigBuilder {
   build(): { connectionConfig: ConnectionConfig; clientOptions: ClientOptions } {
     return {
       connectionConfig: { ...DEFAULT_CONFIG, ...this.config } as ConnectionConfig,
-      clientOptions: { ...DEFAULT_CLIENT_OPTIONS, ...this.options } as ClientOptions
+      clientOptions: { ...DEFAULT_CLIENT_OPTIONS, ...this.options } as ClientOptions,
     }
   }
 }
@@ -341,7 +343,7 @@ export class ConfigPresets {
       .clientOptions({
         autoCreateTables: true,
         validateInputs: true,
-        collectStats: true
+        collectStats: true,
       })
   }
 
@@ -353,14 +355,14 @@ export class ConfigPresets {
       .connectionString(connectionString)
       .ssl({
         rejectUnauthorized: true,
-        mode: 'require'
+        mode: 'require',
       })
       .pool(20, 3600, 300) // 20 connections, 1h lifetime, 5m idle timeout
       .clientOptions({
         maxRetries: 5,
         queryTimeout: 60000,
         validateInputs: true,
-        collectStats: false
+        collectStats: false,
       })
   }
 
@@ -377,7 +379,7 @@ export class ConfigPresets {
         autoCreateTables: true,
         validateInputs: true,
         maxRetries: 1,
-        queryTimeout: 10000
+        queryTimeout: 10000,
       })
   }
 
@@ -392,7 +394,7 @@ export class ConfigPresets {
       .clientOptions({
         maxRetries: 3,
         retryBaseDelay: 2000,
-        queryTimeout: 45000
+        queryTimeout: 45000,
       })
   }
 }

@@ -9,6 +9,9 @@
 !examples/
 !examples/**
 
+!scripts/
+!scripts/**
+
 !src/
 !src/**
 
@@ -21,6 +24,7 @@
 !deno.lock
 !LICENSE
 !CHANGELOG.md
+!CONTRIBUTING.md
 !README.md
 !mod.ts
 

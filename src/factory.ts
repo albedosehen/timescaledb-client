@@ -1,31 +1,22 @@
 /**
  * Factory functions for creating TimescaleClient instances
- * 
+ *
  * Provides convenient factory methods for different initialization patterns
  * including connection strings, configuration objects, environment variables,
  * and configuration builders.
  */
 
-import type {
-  ConnectionConfig,
-  ClientOptions,
-  Logger,
-  ConfigBuilder
-} from './types/config.ts'
+import type { ClientOptions, ConfigBuilder, ConnectionConfig, Logger } from './types/config.ts'
 import type { SqlInstance } from './types/internal.ts'
-import { 
-  createDatabaseLayer, 
+import {
+  checkTimescaleDB,
+  createDatabaseLayer,
   createDatabaseLayerFromEnv,
   createSimplePool,
   testConnection,
-  checkTimescaleDB
 } from './database/mod.ts'
 import { TimescaleClient, type TimescaleClientConfig } from './client.ts'
-import { 
-  ValidationError, 
-  ConnectionError, 
-  ConfigurationError 
-} from './types/errors.ts'
+import { ConfigurationError, ConnectionError, ValidationError } from './types/errors.ts'
 
 /**
  * Factory options for client creation
@@ -33,13 +24,13 @@ import {
 export interface ClientFactoryOptions {
   /** Whether to test connection before returning client */
   readonly testConnection?: boolean
-  
+
   /** Whether to verify TimescaleDB availability */
   readonly verifyTimescaleDB?: boolean
-  
+
   /** Whether to automatically initialize the client */
   readonly autoInitialize?: boolean
-  
+
   /** Custom logger for factory operations */
   readonly logger?: Logger
 }
@@ -51,29 +42,28 @@ const DEFAULT_FACTORY_OPTIONS: Required<ClientFactoryOptions> = {
   testConnection: true,
   verifyTimescaleDB: true,
   autoInitialize: true,
-  logger: undefined!
+  logger: undefined!,
 }
 
 /**
  * Main factory class for creating TimescaleClient instances
  */
 export class ClientFactory {
-  
   /**
    * Create a TimescaleClient from a connection string
-   * 
+   *
    * @param connectionString - PostgreSQL connection string
    * @param clientOptions - Client behavior options
    * @param factoryOptions - Factory-specific options
    * @returns Promise resolving to configured TimescaleClient
-   * 
+   *
    * @example
    * ```typescript
    * const client = await ClientFactory.fromConnectionString(
    *   'postgresql://user:pass@localhost:5432/timescale_db',
-   *   { 
+   *   {
    *     defaultBatchSize: 5000,
-   *     validateInputs: true 
+   *     validateInputs: true
    *   }
    * )
    * ```
@@ -81,10 +71,10 @@ export class ClientFactory {
   static async fromConnectionString(
     connectionString: string,
     clientOptions: TimescaleClientConfig = {},
-    factoryOptions: ClientFactoryOptions = {}
+    factoryOptions: ClientFactoryOptions = {},
   ): Promise<TimescaleClient> {
     const options = { ...DEFAULT_FACTORY_OPTIONS, ...factoryOptions }
-    
+
     if (!connectionString || typeof connectionString !== 'string') {
       throw new ValidationError('Connection string is required', 'connectionString', connectionString)
     }
@@ -92,7 +82,7 @@ export class ClientFactory {
     try {
       const connectionConfig: ConnectionConfig = {
         connectionString,
-        debug: clientOptions.logger !== undefined
+        debug: clientOptions.logger !== undefined,
       }
 
       // Test connection if requested
@@ -114,13 +104,13 @@ export class ClientFactory {
         connection: connectionConfig,
         client: clientOptions,
         enableHealthChecking: true,
-        logger: options.logger
+        logger: options.logger,
       })
 
       // Create client
       const client = new TimescaleClient(dbLayer, {
         ...clientOptions,
-        logger: options.logger
+        logger: options.logger,
       })
 
       // Initialize if requested
@@ -132,19 +122,19 @@ export class ClientFactory {
     } catch (error) {
       throw new ConnectionError(
         'Failed to create client from connection string',
-        error instanceof Error ? error : new Error(String(error))
+        error instanceof Error ? error : new Error(String(error)),
       )
     }
   }
 
   /**
    * Create a TimescaleClient from a configuration object
-   * 
+   *
    * @param connectionConfig - Database connection configuration
    * @param clientOptions - Client behavior options
    * @param factoryOptions - Factory-specific options
    * @returns Promise resolving to configured TimescaleClient
-   * 
+   *
    * @example
    * ```typescript
    * const client = await ClientFactory.fromConfig({
@@ -163,7 +153,7 @@ export class ClientFactory {
   static async fromConfig(
     connectionConfig: ConnectionConfig,
     clientOptions: TimescaleClientConfig = {},
-    factoryOptions: ClientFactoryOptions = {}
+    factoryOptions: ClientFactoryOptions = {},
   ): Promise<TimescaleClient> {
     const options = { ...DEFAULT_FACTORY_OPTIONS, ...factoryOptions }
 
@@ -191,13 +181,13 @@ export class ClientFactory {
         connection: connectionConfig,
         client: clientOptions,
         enableHealthChecking: true,
-        logger: options.logger
+        logger: options.logger,
       })
 
       // Create client
       const client = new TimescaleClient(dbLayer, {
         ...clientOptions,
-        logger: options.logger
+        logger: options.logger,
       })
 
       // Initialize if requested
@@ -209,21 +199,21 @@ export class ClientFactory {
     } catch (error) {
       throw new ConnectionError(
         'Failed to create client from configuration',
-        error instanceof Error ? error : new Error(String(error))
+        error instanceof Error ? error : new Error(String(error)),
       )
     }
   }
 
   /**
    * Create a TimescaleClient from environment variables
-   * 
+   *
    * Uses standard PostgreSQL environment variables:
    * - TIMESCALE_CONNECTION_STRING or PGHOST, PGPORT, PGDATABASE, etc.
-   * 
+   *
    * @param clientOptions - Client behavior options
    * @param factoryOptions - Factory-specific options
    * @returns Promise resolving to configured TimescaleClient
-   * 
+   *
    * @example
    * ```typescript
    * // Set environment variables:
@@ -232,7 +222,7 @@ export class ClientFactory {
    * // PGDATABASE=timescale_db
    * // PGUSER=user
    * // PGPASSWORD=password
-   * 
+   *
    * const client = await ClientFactory.fromEnvironment({
    *   maxRetries: 5,
    *   queryTimeout: 60000
@@ -241,7 +231,7 @@ export class ClientFactory {
    */
   static async fromEnvironment(
     clientOptions: TimescaleClientConfig = {},
-    factoryOptions: ClientFactoryOptions = {}
+    factoryOptions: ClientFactoryOptions = {},
   ): Promise<TimescaleClient> {
     const options = { ...DEFAULT_FACTORY_OPTIONS, ...factoryOptions }
 
@@ -251,8 +241,8 @@ export class ClientFactory {
         options.logger,
         {
           client: clientOptions,
-          enableHealthChecking: true
-        }
+          enableHealthChecking: true,
+        },
       )
 
       // Test connection if requested
@@ -278,7 +268,7 @@ export class ClientFactory {
       // Create client
       const client = new TimescaleClient(dbLayer, {
         ...clientOptions,
-        logger: options.logger
+        logger: options.logger,
       })
 
       // Initialize if requested
@@ -290,18 +280,18 @@ export class ClientFactory {
     } catch (error) {
       throw new ConnectionError(
         'Failed to create client from environment variables',
-        error instanceof Error ? error : new Error(String(error))
+        error instanceof Error ? error : new Error(String(error)),
       )
     }
   }
 
   /**
    * Create a TimescaleClient using a configuration builder
-   * 
+   *
    * @param builderFn - Function that configures and builds the client
    * @param factoryOptions - Factory-specific options
    * @returns Promise resolving to configured TimescaleClient
-   * 
+   *
    * @example
    * ```typescript
    * const client = await ClientFactory.fromBuilder(
@@ -317,7 +307,7 @@ export class ClientFactory {
    */
   static async fromBuilder(
     builderFn: (builder: ConfigBuilder) => { connectionConfig: ConnectionConfig; clientOptions: ClientOptions },
-    factoryOptions: ClientFactoryOptions = {}
+    factoryOptions: ClientFactoryOptions = {},
   ): Promise<TimescaleClient> {
     if (typeof builderFn !== 'function') {
       throw new ValidationError('Builder function is required', 'builderFn')
@@ -333,21 +323,21 @@ export class ClientFactory {
     } catch (error) {
       throw new ConnectionError(
         'Failed to create client from builder',
-        error instanceof Error ? error : new Error(String(error))
+        error instanceof Error ? error : new Error(String(error)),
       )
     }
   }
 
   /**
    * Create a simple TimescaleClient without health monitoring (for testing/development)
-   * 
+   *
    * @param connectionString - PostgreSQL connection string
    * @param clientOptions - Client behavior options
    * @returns TimescaleClient instance (not initialized)
    */
   static createSimple(
     connectionString: string,
-    clientOptions: TimescaleClientConfig = {}
+    clientOptions: TimescaleClientConfig = {},
   ): TimescaleClient {
     if (!connectionString || typeof connectionString !== 'string') {
       throw new ValidationError('Connection string is required', 'connectionString', connectionString)
@@ -357,14 +347,14 @@ export class ClientFactory {
       const pool = createSimplePool(
         { connectionString },
         undefined,
-        clientOptions
+        clientOptions,
       )
 
       return new TimescaleClient(pool as unknown as SqlInstance, clientOptions)
     } catch (error) {
       throw new ConnectionError(
         'Failed to create simple client',
-        error instanceof Error ? error : new Error(String(error))
+        error instanceof Error ? error : new Error(String(error)),
       )
     }
   }
@@ -374,19 +364,18 @@ export class ClientFactory {
  * Convenience factory functions using configuration presets
  */
 export class ClientPresets {
-  
   /**
    * Create a development client with debug enabled
    */
   static async development(
     database = 'timescale_dev',
-    factoryOptions: ClientFactoryOptions = {}
+    factoryOptions: ClientFactoryOptions = {},
   ): Promise<TimescaleClient> {
     const { ConfigPresets } = await import('./types/config.ts')
-    
+
     return await ClientFactory.fromBuilder(
       () => ConfigPresets.development(database).build(),
-      { testConnection: false, ...factoryOptions }
+      { testConnection: false, ...factoryOptions },
     )
   }
 
@@ -395,13 +384,13 @@ export class ClientPresets {
    */
   static async production(
     connectionString: string,
-    factoryOptions: ClientFactoryOptions = {}
+    factoryOptions: ClientFactoryOptions = {},
   ): Promise<TimescaleClient> {
     const { ConfigPresets } = await import('./types/config.ts')
-    
+
     return await ClientFactory.fromBuilder(
       () => ConfigPresets.production(connectionString).build(),
-      factoryOptions
+      factoryOptions,
     )
   }
 
@@ -410,13 +399,13 @@ export class ClientPresets {
    */
   static async testing(
     database = 'timescale_test',
-    factoryOptions: ClientFactoryOptions = {}
+    factoryOptions: ClientFactoryOptions = {},
   ): Promise<TimescaleClient> {
     const { ConfigPresets } = await import('./types/config.ts')
-    
+
     return await ClientFactory.fromBuilder(
       () => ConfigPresets.testing(database).build(),
-      { testConnection: false, verifyTimescaleDB: false, ...factoryOptions }
+      { testConnection: false, verifyTimescaleDB: false, ...factoryOptions },
     )
   }
 
@@ -425,13 +414,13 @@ export class ClientPresets {
    */
   static async cloud(
     connectionString: string,
-    factoryOptions: ClientFactoryOptions = {}
+    factoryOptions: ClientFactoryOptions = {},
   ): Promise<TimescaleClient> {
     const { ConfigPresets } = await import('./types/config.ts')
-    
+
     return await ClientFactory.fromBuilder(
       () => ConfigPresets.cloud(connectionString).build(),
-      factoryOptions
+      factoryOptions,
     )
   }
 }
@@ -440,13 +429,12 @@ export class ClientPresets {
  * Utility functions for connection testing and validation
  */
 export class ClientUtils {
-  
   /**
    * Test a connection without creating a full client
    */
   static async testConnection(
     connectionConfig: ConnectionConfig,
-    logger?: Logger
+    logger?: Logger,
   ): Promise<boolean> {
     try {
       await testConnection(connectionConfig, logger)
@@ -461,7 +449,7 @@ export class ClientUtils {
    */
   static async checkTimescaleDB(
     connectionConfig: ConnectionConfig,
-    logger?: Logger
+    logger?: Logger,
   ): Promise<{
     isAvailable: boolean
     version?: string
@@ -475,7 +463,11 @@ export class ClientUtils {
    */
   static validateConfig(config: TimescaleClientConfig): void {
     if (config.defaultBatchSize && (config.defaultBatchSize <= 0 || config.defaultBatchSize > 10000)) {
-      throw new ValidationError('Default batch size must be between 1 and 10,000', 'defaultBatchSize', config.defaultBatchSize)
+      throw new ValidationError(
+        'Default batch size must be between 1 and 10,000',
+        'defaultBatchSize',
+        config.defaultBatchSize,
+      )
     }
 
     if (config.maxRetries && config.maxRetries < 0) {

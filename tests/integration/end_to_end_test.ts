@@ -1,4 +1,4 @@
-import { describe, it, beforeEach, afterEach } from '@std/testing/bdd'
+import { afterEach, beforeEach, describe, it } from '@std/testing/bdd'
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { createMockSql, type MockSql } from '../mocks/postgres.ts'
 
@@ -23,25 +23,28 @@ interface PriceTick {
 
 // Mock TimescaleClient for integration testing
 class MockTimescaleClient {
-  constructor(private sql: any) {}
+  constructor(private sql: MockSql) {}
 
   async insertPriceTicks(ticks: PriceTick[]): Promise<void> {
-    return this.sql`INSERT INTO price_ticks ${this.sql(ticks)}`
+    await this.sql`INSERT INTO price_ticks ${this.sql(ticks)}`
   }
 
   async getAveragePrice(symbol: string, start: Date, end: Date): Promise<number> {
-    const result = await this.sql`SELECT AVG(price) as avg FROM price_ticks WHERE symbol = ${symbol} AND timestamp BETWEEN ${start} AND ${end}`
-    return parseFloat(result[0]?.avg || '0')
+    const result = await this
+      .sql`SELECT AVG(price) as avg FROM price_ticks WHERE symbol = ${symbol} AND timestamp BETWEEN ${start} AND ${end}`
+    return parseFloat(String(result[0]?.avg || '0'))
   }
 
   async getMaxPrice(symbol: string, start: Date, end: Date): Promise<number> {
-    const result = await this.sql`SELECT MAX(price) as max FROM price_ticks WHERE symbol = ${symbol} AND timestamp BETWEEN ${start} AND ${end}`
-    return parseFloat(result[0]?.max || '0')
+    const result = await this
+      .sql`SELECT MAX(price) as max FROM price_ticks WHERE symbol = ${symbol} AND timestamp BETWEEN ${start} AND ${end}`
+    return parseFloat(String(result[0]?.max || '0'))
   }
 
   async getMinPrice(symbol: string, start: Date, end: Date): Promise<number> {
-    const result = await this.sql`SELECT MIN(price) as min FROM price_ticks WHERE symbol = ${symbol} AND timestamp BETWEEN ${start} AND ${end}`
-    return parseFloat(result[0]?.min || '0')
+    const result = await this
+      .sql`SELECT MIN(price) as min FROM price_ticks WHERE symbol = ${symbol} AND timestamp BETWEEN ${start} AND ${end}`
+    return parseFloat(String(result[0]?.min || '0'))
   }
 
   async close(): Promise<void> {
@@ -51,9 +54,9 @@ class MockTimescaleClient {
 
 // Mock factory for testing
 class MockTimescaleClientFactory {
-  static async create(_config: DatabaseConfig, sql?: any): Promise<MockTimescaleClient> {
+  static create(_config: DatabaseConfig, sql?: MockSql): Promise<MockTimescaleClient> {
     const mockSql = sql || createMockSql()
-    return new MockTimescaleClient(mockSql)
+    return Promise.resolve(new MockTimescaleClient(mockSql))
   }
 }
 
@@ -83,7 +86,7 @@ function generatePriceTicks(options: {
       symbol,
       price: Math.round(currentPrice * 100) / 100, // Round to 2 decimals
       volume,
-      timestamp
+      timestamp,
     })
   }
 
@@ -97,7 +100,7 @@ const testConfigs = {
     port: 5432,
     database: 'test_timescale',
     username: 'test_user',
-    password: 'test_pass'
+    password: 'test_pass',
   },
   ssl: {
     host: 'localhost',
@@ -105,7 +108,7 @@ const testConfigs = {
     database: 'test_timescale',
     username: 'test_user',
     password: 'test_pass',
-    ssl: true
+    ssl: true,
   },
   pooled: {
     host: 'localhost',
@@ -113,8 +116,8 @@ const testConfigs = {
     database: 'test_timescale',
     username: 'test_user',
     password: 'test_pass',
-    poolSize: 10
-  }
+    poolSize: 10,
+  },
 }
 
 /**
@@ -137,25 +140,25 @@ describe('End-to-End Integration Tests', () => {
   describe('Complete Trading Data Workflow', () => {
     it('should handle complete trading session lifecycle', async () => {
       // Create client
-      const client = await MockTimescaleClientFactory.create(config, mockSql as any)
+      const client = await MockTimescaleClientFactory.create(config, mockSql)
 
       // Generate realistic trading session data
       const sessionStart = new Date('2024-01-15T09:30:00Z') // Market open
-      const sessionEnd = new Date('2024-01-15T16:00:00Z')   // Market close
-      
+      const sessionEnd = new Date('2024-01-15T16:00:00Z') // Market close
+
       const tradingData = generatePriceTicks({
         symbol: 'AAPL',
         count: 100, // Smaller for testing
         startTime: sessionStart,
         endTime: sessionEnd,
         basePrice: 150.00,
-        volatility: 0.02
+        volatility: 0.02,
       })
 
       // Mock successful batch insert
       mockSql.setMockResults([{
         command: 'INSERT',
-        rowCount: tradingData.length
+        rowCount: tradingData.length,
       }])
 
       // Insert trading data
@@ -181,12 +184,12 @@ describe('End-to-End Integration Tests', () => {
     })
 
     it('should handle multi-symbol portfolio analysis', async () => {
-      const client = await MockTimescaleClientFactory.create(config, mockSql as any)
+      const client = await MockTimescaleClientFactory.create(config, mockSql)
 
       const symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN']
       const timeframe = {
         start: new Date('2024-01-15T09:30:00Z'),
-        end: new Date('2024-01-15T16:00:00Z')
+        end: new Date('2024-01-15T16:00:00Z'),
       }
 
       // Generate data for multiple symbols
@@ -198,7 +201,7 @@ describe('End-to-End Integration Tests', () => {
           startTime: timeframe.start,
           endTime: timeframe.end,
           basePrice: Math.random() * 200 + 100,
-          volatility: 0.015
+          volatility: 0.015,
         })
         portfolioData.push(...symbolData)
       }
@@ -206,7 +209,7 @@ describe('End-to-End Integration Tests', () => {
       // Mock batch insert
       mockSql.setMockResults([{
         command: 'INSERT',
-        rowCount: portfolioData.length
+        rowCount: portfolioData.length,
       }])
 
       // Insert portfolio data
@@ -215,7 +218,8 @@ describe('End-to-End Integration Tests', () => {
       // Verify insertion
       const queries = mockSql._queryHistory
       assert(queries.length > 0)
-      assert(queries.some(q => q.query.includes('INSERT INTO price_ticks')))
+      // deno-lint-ignore no-explicit-any
+      assert(queries.some((q: any) => q.query.includes('INSERT INTO price_ticks')))
 
       await client.close()
     })
@@ -223,13 +227,13 @@ describe('End-to-End Integration Tests', () => {
 
   describe('Error Recovery and Resilience', () => {
     it('should recover from connection failures', async () => {
-      const client = await MockTimescaleClientFactory.create(config, mockSql as any)
+      const client = await MockTimescaleClientFactory.create(config, mockSql)
 
       const testData = generatePriceTicks({
         symbol: 'TEST',
         count: 10,
         startTime: new Date(),
-        endTime: new Date(Date.now() + 60000)
+        endTime: new Date(Date.now() + 60000),
       })
 
       // Simulate connection failure
@@ -239,14 +243,14 @@ describe('End-to-End Integration Tests', () => {
       await assertRejects(
         () => client.insertPriceTicks(testData),
         Error,
-        'Connection lost'
+        'Connection lost',
       )
 
       // Mock successful reconnection
       mockSql.clearMockError()
       mockSql.setMockResults([{
         command: 'INSERT',
-        rowCount: testData.length
+        rowCount: testData.length,
       }])
 
       // Retry should succeed
@@ -256,20 +260,20 @@ describe('End-to-End Integration Tests', () => {
     })
 
     it('should handle large dataset processing', async () => {
-      const client = await MockTimescaleClientFactory.create(config, mockSql as any)
+      const client = await MockTimescaleClientFactory.create(config, mockSql)
 
       // Generate large dataset (smaller for testing)
       const largeDataset = generatePriceTicks({
         symbol: 'LARGE',
         count: 1000,
         startTime: new Date('2024-01-01'),
-        endTime: new Date('2024-01-31')
+        endTime: new Date('2024-01-31'),
       })
 
       // Mock successful large batch processing
       mockSql.setMockResults([{
         command: 'INSERT',
-        rowCount: largeDataset.length
+        rowCount: largeDataset.length,
       }])
 
       // Process large dataset
@@ -283,7 +287,8 @@ describe('End-to-End Integration Tests', () => {
       // Verify data was processed
       const queries = mockSql._queryHistory
       assert(queries.length > 0)
-      assert(queries.some(q => q.query.includes('INSERT INTO price_ticks')))
+      // deno-lint-ignore no-explicit-any
+      assert(queries.some((q: any) => q.query.includes('INSERT INTO price_ticks')))
 
       await client.close()
     })
@@ -291,7 +296,7 @@ describe('End-to-End Integration Tests', () => {
 
   describe('Real-time Data Simulation', () => {
     it('should handle streaming data patterns', async () => {
-      const client = await MockTimescaleClientFactory.create(config, mockSql as any)
+      const client = await MockTimescaleClientFactory.create(config, mockSql)
 
       // Simulate real-time streaming with small batches
       const streamBatches: PriceTick[][] = []
@@ -305,7 +310,7 @@ describe('End-to-End Integration Tests', () => {
           count: ticksPerBatch,
           startTime: batchTime,
           endTime: new Date(batchTime.getTime() + 100),
-          basePrice: 100 + Math.sin(i / 10) * 10
+          basePrice: 100 + Math.sin(i / 10) * 10,
         })
         streamBatches.push(batch)
       }
@@ -313,14 +318,14 @@ describe('End-to-End Integration Tests', () => {
       // Mock all batch inserts
       mockSql.setMockResults([{
         command: 'INSERT',
-        rowCount: ticksPerBatch
+        rowCount: ticksPerBatch,
       }])
 
       // Process streaming batches
       for (const batch of streamBatches) {
         await client.insertPriceTicks(batch)
         // Small delay to simulate real-time processing
-        await new Promise(resolve => setTimeout(resolve, 10))
+        await new Promise((resolve) => setTimeout(resolve, 10))
       }
 
       // Verify all batches were processed
@@ -333,13 +338,13 @@ describe('End-to-End Integration Tests', () => {
 
   describe('Analytics Pipeline Integration', () => {
     it('should execute complex analytics workflow', async () => {
-      const client = await MockTimescaleClientFactory.create(config, mockSql as any)
+      const client = await MockTimescaleClientFactory.create(config, mockSql)
 
       // Setup test data
       const symbols = ['ETH', 'BTC', 'ADA']
       const timeRange = {
         start: new Date('2024-01-01'),
-        end: new Date('2024-01-07')
+        end: new Date('2024-01-07'),
       }
 
       // Execute analytics workflow
@@ -360,13 +365,13 @@ describe('End-to-End Integration Tests', () => {
           symbol,
           avgPrice: avg,
           maxPrice: max,
-          minPrice: min
+          minPrice: min,
         })
       }
 
       // Verify analytics were executed
       assert(analyticsResults.length === symbols.length)
-      
+
       const queries = mockSql._queryHistory
       assert(queries.length >= symbols.length * 3) // At least 3 queries per symbol
 
@@ -379,23 +384,23 @@ describe('End-to-End Integration Tests', () => {
       const configs = [
         testConfigs.basic,
         testConfigs.ssl,
-        testConfigs.pooled
+        testConfigs.pooled,
       ]
 
       for (const testConfig of configs) {
-        const client = await MockTimescaleClientFactory.create(testConfig, mockSql as any)
-        
+        const client = await MockTimescaleClientFactory.create(testConfig, mockSql)
+
         // Test basic functionality with each config
         const testTick: PriceTick = {
           symbol: 'CONFIG_TEST',
           price: 100.00,
           volume: 1000,
-          timestamp: new Date()
+          timestamp: new Date(),
         }
 
         mockSql.setMockResults([{
           command: 'INSERT',
-          rowCount: 1
+          rowCount: 1,
         }])
 
         await client.insertPriceTicks([testTick])

@@ -1,8 +1,8 @@
 -- Migration: 001_initial_schema.sql
 -- Description: Initial TimescaleDB schema with core hypertables and supporting tables
 -- Author: TimescaleDB Client Generator
+-- Dialect: postgresql
 -- Created: 2024-01-01
-
 -- =============================================================================
 -- MIGRATION METADATA
 -- =============================================================================

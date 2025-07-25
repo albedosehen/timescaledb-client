@@ -6,78 +6,67 @@
  */
 
 // Insert operations
-export {
-  insertTick,
-  insertOhlc,
-  insertManyTicks,
-  insertManyOhlc,
-  type InsertOptions
-} from './insert.ts'
+export { insertManyOhlc, insertManyTicks, insertOhlc, type InsertOptions, insertTick } from './insert.ts'
 
 // Select operations
 export {
-  getTicks,
-  getOhlc,
-  getOhlcFromTicks,
   getLatestPrice,
   getMultiSymbolLatest,
-  getTicksStream,
+  getOhlc,
+  getOhlcFromTicks,
   getOhlcStream,
-  type SelectOptions
+  getTicks,
+  getTicksStream,
+  type SelectOptions,
 } from './select.ts'
 
 // Aggregation operations
 export {
-  getTimeBucketAggregation,
-  getVwap,
-  getPriceDelta,
-  getVolatility,
-  getMovingAverages,
+  type AggregationOptions,
   getContinuousAggregate,
   getGapFilledAggregation,
-  type AggregationOptions,
+  getMovingAverages,
+  getPriceDelta,
+  getTimeBucketAggregation,
+  getVolatility,
+  getVwap,
+  type PriceDeltaResult,
   type TimeBucketResult,
   type VwapResult,
-  type PriceDeltaResult
 } from './aggregate.ts'
 
 // Analytics operations
 export {
-  calculateSMA,
+  type AnalyticsOptions,
+  type BollingerBandsResult,
+  calculateBollingerBands,
+  calculateCorrelation,
   calculateEMA,
   calculateRSI,
-  calculateBollingerBands,
+  calculateSMA,
+  type CorrelationResult,
+  findSupportResistanceLevels,
   getTopMovers,
   getVolumeProfile,
-  findSupportResistanceLevels,
-  calculateCorrelation,
-  type AnalyticsOptions,
-  type TechnicalIndicatorResult,
+  type MomentumResult,
   type RSIResult,
-  type BollingerBandsResult,
   type SupportResistanceLevel,
-  type CorrelationResult,
-  type MomentumResult
+  type TechnicalIndicatorResult,
 } from './analytics.ts'
 
 // Re-export common types from interfaces
 export type {
-  TimeRange,
-  QueryOptions,
-  TopMover,
-  VolumeProfile,
+  BatchResult,
+  LatestPrice,
+  MultiSymbolLatest,
   Ohlc,
   PriceTick,
-  BatchResult,
+  QueryOptions,
   StreamingOptions,
-  MultiSymbolLatest,
-  LatestPrice
+  TimeRange,
+  TopMover,
+  VolumeProfile,
 } from '../types/interfaces.ts'
 
 // Re-export error types
-export {
-  ValidationError,
-  QueryError,
-  BatchError,
-  ConnectionError
-} from '../types/errors.ts'
+export { BatchError, ConnectionError, QueryError, ValidationError } from '../types/errors.ts'

@@ -1,75 +1,56 @@
 /**
  * Type definitions module exports for TimescaleDB client
- * 
+ *
  * This module consolidates all type definitions and provides a clean
  * public API for type imports throughout the project.
  */
 
 // Core data interfaces
 export type {
-  PriceTick,
-  Ohlc,
-  TimeRange,
-  TimeInterval,
   AggregationFunction,
-  PriceDelta,
-  VolatilityResult,
-  LatestPrice,
   BatchResult,
-  QueryStats,
-  QueryOptions,
-  VolumeProfile,
-  SchemaInfo,
+  HealthCheckResult,
   HypertableInfo,
   IndexInfo,
-  RetentionPolicy,
-  StreamingOptions,
+  LatestPrice,
   MultiSymbolLatest,
+  Ohlc,
+  PriceDelta,
+  PriceTick,
+  QueryOptions,
+  QueryStats,
+  RetentionPolicy,
+  SchemaInfo,
+  StreamingOptions,
+  TimeInterval,
+  TimeRange,
   TopMover,
-  HealthCheckResult,
-  ValidationHelpers
+  ValidationHelpers,
+  VolatilityResult,
+  VolumeProfile,
 } from './interfaces.ts'
 
 // Configuration interfaces
-export type {
-  SSLConfig,
-  ConnectionConfig,
-  ClientOptions,
-  Logger
-} from './config.ts'
+export type { ClientOptions, ConnectionConfig, Logger, SSLConfig } from './config.ts'
 
-export {
-  ENV_VARS,
-  DEFAULT_CONFIG,
-  DEFAULT_CLIENT_OPTIONS,
-  ConfigBuilder,
-  ConfigPresets
-} from './config.ts'
+export { ConfigBuilder, ConfigPresets, DEFAULT_CLIENT_OPTIONS, DEFAULT_CONFIG, ENV_VARS } from './config.ts'
 
 // Error classes and utilities
 export {
-  TimescaleClientError,
-  ConnectionError,
-  ValidationError,
-  QueryError,
-  SchemaError,
-  ConfigurationError,
-  TimeoutError,
   BatchError,
-  RateLimitError,
+  ConfigurationError,
+  ConnectionError,
   ERROR_CODES,
-  ErrorUtils
+  ErrorUtils,
+  QueryError,
+  RateLimitError,
+  SchemaError,
+  TimeoutError,
+  TimescaleClientError,
+  ValidationError,
 } from './errors.ts'
 
-export type {
-  ErrorCode,
-  PostgresError,
-  ErrorContext
-} from './errors.ts'
+export type { ErrorCode, ErrorContext, PostgresError } from './errors.ts'
 
 // Internal types (for implementation use only)
-export type {
-  SqlInstance,
-  QueryBuilder,
-  BatchInsertOptions
-} from './internal.ts'
+export type { BatchInsertOptions, QueryBuilder, SqlInstance } from './internal.ts'

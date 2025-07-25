@@ -1,19 +1,13 @@
 /**
  * Aggregation operations for TimescaleDB client
- * 
+ *
  * Provides time-windowed aggregations, OHLC calculations, and TimescaleDB-specific
  * aggregation functions for time-series data analysis.
  */
 
 import type { SqlInstance } from '../types/internal.ts'
-import type {
-  TimeRange,
-  QueryOptions
-} from '../types/interfaces.ts'
-import { 
-  ValidationError, 
-  QueryError 
-} from '../types/errors.ts'
+import type { QueryOptions, TimeRange } from '../types/interfaces.ts'
+import { QueryError, ValidationError } from '../types/errors.ts'
 
 /**
  * Aggregation configuration options
@@ -101,7 +95,7 @@ const DEFAULT_AGGREGATION_OPTIONS: Required<AggregationOptions> = {
   includeStats: false,
   fillGaps: false,
   fillValue: null,
-  includeMetadata: false
+  includeMetadata: false,
 }
 
 /**
@@ -112,10 +106,10 @@ export async function getTimeBucketAggregation(
   symbol: string,
   bucketInterval: string,
   range: TimeRange,
-  options: AggregationOptions = {}
+  options: AggregationOptions = {},
 ): Promise<TimeBucketResult[]> {
   const opts = { ...DEFAULT_AGGREGATION_OPTIONS, ...options }
-  
+
   validateSymbol(symbol)
   validateTimeRange(range)
   validateBucketInterval(bucketInterval)
@@ -161,14 +155,14 @@ export async function getTimeBucketAggregation(
       sum: row.sum ?? undefined,
       first: row.first ?? undefined,
       last: row.last ?? undefined,
-      stddev: row.stddev ?? undefined
+      stddev: row.stddev ?? undefined,
     }))
   } catch (error) {
     throw new QueryError(
       'Failed to calculate time bucket aggregation',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT time_bucket FROM price_ticks',
-      [symbol, bucketInterval, range.from, range.to]
+      [symbol, bucketInterval, range.from, range.to],
     )
   }
 }
@@ -181,10 +175,10 @@ export async function getVwap(
   symbol: string,
   bucketInterval: string,
   range: TimeRange,
-  options: AggregationOptions = {}
+  options: AggregationOptions = {},
 ): Promise<VwapResult[]> {
   const opts = { ...DEFAULT_AGGREGATION_OPTIONS, ...options }
-  
+
   validateSymbol(symbol)
   validateTimeRange(range)
   validateBucketInterval(bucketInterval)
@@ -224,15 +218,15 @@ export async function getVwap(
       totalVolume: row.total_volume,
       priceRange: {
         min: row.min_price,
-        max: row.max_price
-      }
+        max: row.max_price,
+      },
     }))
   } catch (error) {
     throw new QueryError(
       'Failed to calculate VWAP',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT time_bucket VWAP FROM price_ticks',
-      [symbol, bucketInterval, range.from, range.to]
+      [symbol, bucketInterval, range.from, range.to],
     )
   }
 }
@@ -244,10 +238,10 @@ export async function getPriceDelta(
   sql: SqlInstance,
   symbol: string,
   from: Date,
-  to: Date
+  to: Date,
 ): Promise<PriceDeltaResult> {
   validateSymbol(symbol)
-  
+
   if (from >= to) {
     throw new ValidationError('From date must be before to date', 'from', from)
   }
@@ -296,7 +290,7 @@ export async function getPriceDelta(
     }
 
     const result = results[0]
-    
+
     if (!result) {
       throw new QueryError('No price data found for the specified time range')
     }
@@ -307,14 +301,14 @@ export async function getPriceDelta(
       endPrice: result.end_price,
       delta: result.delta,
       percentChange: result.percent_change ?? 0,
-      timeRange: { from, to }
+      timeRange: { from, to },
     }
   } catch (error) {
     throw new QueryError(
       'Failed to calculate price delta',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT price delta FROM price_ticks',
-      [symbol, from, to]
+      [symbol, from, to],
     )
   }
 }
@@ -325,10 +319,10 @@ export async function getPriceDelta(
 export async function getVolatility(
   sql: SqlInstance,
   symbol: string,
-  hours: number
+  hours: number,
 ): Promise<number> {
   validateSymbol(symbol)
-  
+
   if (hours <= 0) {
     throw new ValidationError('Hours must be positive', 'hours', hours)
   }
@@ -347,7 +341,7 @@ export async function getVolatility(
     }>
 
     const result = results[0]
-    
+
     if (!result || result.sample_count === 0) {
       return 0
     }
@@ -358,7 +352,7 @@ export async function getVolatility(
       'Failed to calculate volatility',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT stddev FROM price_ticks',
-      [symbol, hours]
+      [symbol, hours],
     )
   }
 }
@@ -370,24 +364,23 @@ export async function getContinuousAggregate(
   sql: SqlInstance,
   aggregateName: string,
   range: TimeRange,
-  options: AggregationOptions = {}
+  options: AggregationOptions = {},
 ): Promise<Array<Record<string, unknown>>> {
   const opts = { ...DEFAULT_AGGREGATION_OPTIONS, ...options }
-  
+
   validateTimeRange(range)
   validateAggregateName(aggregateName)
 
   try {
     // Dynamic query to select from continuous aggregate view
-    const query = `
-      SELECT *
-      FROM ${aggregateName}
-      WHERE time >= $1 AND time < $2
-      ORDER BY time ${opts.orderBy.direction.toUpperCase()}
-      LIMIT $3 OFFSET $4
-    `
-
-    const results = await sql.unsafe(query) as Array<Record<string, unknown>>
+    // Using unsafe() for dynamic table name, but building complete SQL string
+    const results = await sql.unsafe(
+      `SELECT *
+       FROM ${aggregateName}
+       WHERE time >= '${range.from.toISOString()}' AND time < '${range.to.toISOString()}'
+       ORDER BY time ${opts.orderBy.direction.toUpperCase()}
+       LIMIT ${opts.limit} OFFSET ${opts.offset}`,
+    ) as Array<Record<string, unknown>>
 
     return results
   } catch (error) {
@@ -395,7 +388,7 @@ export async function getContinuousAggregate(
       'Failed to query continuous aggregate',
       error instanceof Error ? error : new Error(String(error)),
       `SELECT FROM ${aggregateName}`,
-      [aggregateName, range.from, range.to]
+      [aggregateName, range.from, range.to],
     )
   }
 }
@@ -409,10 +402,10 @@ export async function getGapFilledAggregation(
   bucketInterval: string,
   range: TimeRange,
   fillValue: number | null = null,
-  options: AggregationOptions = {}
+  options: AggregationOptions = {},
 ): Promise<TimeBucketResult[]> {
   const opts = { ...DEFAULT_AGGREGATION_OPTIONS, ...options }
-  
+
   validateSymbol(symbol)
   validateTimeRange(range)
   validateBucketInterval(bucketInterval)
@@ -452,14 +445,14 @@ export async function getGapFilledAggregation(
       min: row.min ?? undefined,
       max: row.max ?? undefined,
       first: row.first ?? undefined,
-      last: row.last ?? undefined
+      last: row.last ?? undefined,
     }))
   } catch (error) {
     throw new QueryError(
       'Failed to calculate gap-filled aggregation',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT time_bucket_gapfill FROM price_ticks',
-      [symbol, bucketInterval, range.from, range.to]
+      [symbol, bucketInterval, range.from, range.to],
     )
   }
 }
@@ -472,18 +465,20 @@ export async function getMovingAverages(
   symbol: string,
   windowSize: number,
   range: TimeRange,
-  options: AggregationOptions = {}
-): Promise<Array<{
-  time: Date
-  price: number
-  sma: number
-  ema: number
-}>> {
+  options: AggregationOptions = {},
+): Promise<
+  Array<{
+    time: Date
+    price: number
+    sma: number
+    ema: number
+  }>
+> {
   const opts = { ...DEFAULT_AGGREGATION_OPTIONS, ...options }
-  
+
   validateSymbol(symbol)
   validateTimeRange(range)
-  
+
   if (windowSize <= 0) {
     throw new ValidationError('Window size must be positive', 'windowSize', windowSize)
   }
@@ -518,14 +513,14 @@ export async function getMovingAverages(
       time: new Date(row.time),
       price: row.price,
       sma: row.sma,
-      ema: row.ema ?? row.price // Fallback to price for first value
+      ema: row.ema ?? row.price, // Fallback to price for first value
     }))
   } catch (error) {
     throw new QueryError(
       'Failed to calculate moving averages',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT moving averages FROM price_ticks',
-      [symbol, windowSize, range.from, range.to]
+      [symbol, windowSize, range.from, range.to],
     )
   }
 }
@@ -570,12 +565,12 @@ function validateTimeRange(range: TimeRange): void {
 function validateBucketInterval(interval: string): void {
   // Valid TimescaleDB interval formats: '1 minute', '5 minutes', '1 hour', '1 day', etc.
   const intervalPattern = /^\d+\s+(second|minute|hour|day|week|month|year)s?$/i
-  
+
   if (!intervalPattern.test(interval)) {
     throw new ValidationError(
       'Invalid bucket interval format. Use format like "1 minute", "5 minutes", "1 hour", etc.',
       'bucketInterval',
-      interval
+      interval,
     )
   }
 }
@@ -593,7 +588,7 @@ function validateAggregateName(name: string): void {
     throw new ValidationError(
       'Aggregate name must be a valid SQL identifier',
       'aggregateName',
-      name
+      name,
     )
   }
 }

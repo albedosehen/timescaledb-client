@@ -1,21 +1,13 @@
 /**
  * Analytics operations for TimescaleDB client
- * 
+ *
  * Provides advanced financial analysis, technical indicators, and market analytics
  * using TimescaleDB's powerful time-series functions.
  */
 
 import type { SqlInstance } from '../types/internal.ts'
-import type { 
-  TimeRange, 
-  QueryOptions,
-  TopMover,
-  VolumeProfile
-} from '../types/interfaces.ts'
-import { 
-  ValidationError, 
-  QueryError 
-} from '../types/errors.ts'
+import type { QueryOptions, TimeRange, TopMover, VolumeProfile } from '../types/interfaces.ts'
+import { QueryError, ValidationError } from '../types/errors.ts'
 
 /**
  * Analytics configuration options
@@ -131,7 +123,7 @@ const DEFAULT_ANALYTICS_OPTIONS: Required<AnalyticsOptions> = {
   where: {},
   includeStats: true,
   minVolume: 0,
-  smoothingFactor: 0.1
+  smoothingFactor: 0.1,
 }
 
 /**
@@ -142,10 +134,10 @@ export async function calculateSMA(
   symbol: string,
   period: number,
   range: TimeRange,
-  options: AnalyticsOptions = {}
+  options: AnalyticsOptions = {},
 ): Promise<TechnicalIndicatorResult[]> {
   const opts = { ...DEFAULT_ANALYTICS_OPTIONS, ...options }
-  
+
   validateSymbol(symbol)
   validateTimeRange(range)
   validatePeriod(period)
@@ -172,14 +164,14 @@ export async function calculateSMA(
 
     return results.map((row) => ({
       time: new Date(row.time),
-      value: row.sma_value
+      value: row.sma_value,
     }))
   } catch (error) {
     throw new QueryError(
       'Failed to calculate SMA',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT SMA FROM price_ticks',
-      [symbol, period, range.from, range.to]
+      [symbol, period, range.from, range.to],
     )
   }
 }
@@ -192,10 +184,10 @@ export async function calculateEMA(
   symbol: string,
   period: number,
   range: TimeRange,
-  options: AnalyticsOptions = {}
+  options: AnalyticsOptions = {},
 ): Promise<TechnicalIndicatorResult[]> {
   const opts = { ...DEFAULT_ANALYTICS_OPTIONS, ...options }
-  
+
   validateSymbol(symbol)
   validateTimeRange(range)
   validatePeriod(period)
@@ -246,14 +238,14 @@ export async function calculateEMA(
 
     return results.map((row) => ({
       time: new Date(row.time),
-      value: row.ema_value
+      value: row.ema_value,
     }))
   } catch (error) {
     throw new QueryError(
       'Failed to calculate EMA',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT EMA FROM price_ticks',
-      [symbol, period, range.from, range.to]
+      [symbol, period, range.from, range.to],
     )
   }
 }
@@ -266,10 +258,10 @@ export async function calculateRSI(
   symbol: string,
   range: TimeRange,
   period: number = 14,
-  options: AnalyticsOptions = {}
+  options: AnalyticsOptions = {},
 ): Promise<RSIResult[]> {
   const opts = { ...DEFAULT_ANALYTICS_OPTIONS, ...options }
-  
+
   validateSymbol(symbol)
   validateTimeRange(range)
   validatePeriod(period)
@@ -337,14 +329,14 @@ export async function calculateRSI(
       rsi: row.rsi,
       avgGain: row.avg_gain,
       avgLoss: row.avg_loss,
-      signal: row.rsi > 70 ? 'sell' : row.rsi < 30 ? 'buy' : 'hold'
+      signal: row.rsi > 70 ? 'sell' : row.rsi < 30 ? 'buy' : 'hold',
     }))
   } catch (error) {
     throw new QueryError(
       'Failed to calculate RSI',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT RSI FROM price_ticks',
-      [symbol, period, range.from, range.to]
+      [symbol, period, range.from, range.to],
     )
   }
 }
@@ -358,10 +350,10 @@ export async function calculateBollingerBands(
   range: TimeRange,
   period: number = 20,
   stdDevMultiplier: number = 2,
-  options: AnalyticsOptions = {}
+  options: AnalyticsOptions = {},
 ): Promise<BollingerBandsResult[]> {
   const opts = { ...DEFAULT_ANALYTICS_OPTIONS, ...options }
-  
+
   validateSymbol(symbol)
   validateTimeRange(range)
   validatePeriod(period)
@@ -406,7 +398,7 @@ export async function calculateBollingerBands(
         upperBand,
         lowerBand,
         bandwidth,
-        percentB
+        percentB,
       }
     })
   } catch (error) {
@@ -414,7 +406,7 @@ export async function calculateBollingerBands(
       'Failed to calculate Bollinger Bands',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT Bollinger Bands FROM price_ticks',
-      [symbol, period, stdDevMultiplier, range.from, range.to]
+      [symbol, period, stdDevMultiplier, range.from, range.to],
     )
   }
 }
@@ -426,10 +418,10 @@ export async function getTopMovers(
   sql: SqlInstance,
   _options: AnalyticsOptions = {},
   limit: number = 10,
-  hours: number = 24
+  hours: number = 24,
 ): Promise<TopMover[]> {
   // const opts = { ...DEFAULT_ANALYTICS_OPTIONS, ...options }
-  
+
   if (limit <= 0 || limit > 100) {
     throw new ValidationError('Limit must be between 1 and 100', 'limit', limit)
   }
@@ -481,14 +473,14 @@ export async function getTopMovers(
       priceChange: row.price_change,
       percentChange: row.percent_change,
       volume: row.total_volume,
-      periodHours: hours
+      periodHours: hours,
     }))
   } catch (error) {
     throw new QueryError(
       'Failed to get top movers',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT top movers FROM price_ticks',
-      [limit, hours]
+      [limit, hours],
     )
   }
 }
@@ -501,13 +493,13 @@ export async function getVolumeProfile(
   symbol: string,
   range: TimeRange,
   buckets: number = 20,
-  options: AnalyticsOptions = {}
+  options: AnalyticsOptions = {},
 ): Promise<VolumeProfile[]> {
   const opts = { ...DEFAULT_ANALYTICS_OPTIONS, ...options }
-  
+
   validateSymbol(symbol)
   validateTimeRange(range)
-  
+
   if (buckets <= 0 || buckets > 100) {
     throw new ValidationError('Buckets must be between 1 and 100', 'buckets', buckets)
   }
@@ -563,14 +555,14 @@ export async function getVolumeProfile(
       priceLevel: row.price_level,
       volume: row.volume,
       tradeCount: row.trade_count,
-      volumePercent: row.volume_percent
+      volumePercent: row.volume_percent,
     }))
   } catch (error) {
     throw new QueryError(
       'Failed to calculate volume profile',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT volume profile FROM price_ticks',
-      [symbol, buckets, range.from, range.to]
+      [symbol, buckets, range.from, range.to],
     )
   }
 }
@@ -584,10 +576,10 @@ export async function findSupportResistanceLevels(
   range: TimeRange,
   tolerance: number = 0.005, // 0.5% tolerance
   minTouches: number = 3,
-  options: AnalyticsOptions = {}
+  options: AnalyticsOptions = {},
 ): Promise<SupportResistanceLevel[]> {
   const opts = { ...DEFAULT_ANALYTICS_OPTIONS, ...options }
-  
+
   validateSymbol(symbol)
   validateTimeRange(range)
 
@@ -642,14 +634,14 @@ export async function findSupportResistanceLevels(
       touches: row.touches,
       type: row.type,
       firstTouch: new Date(row.first_touch),
-      lastTouch: new Date(row.last_touch)
+      lastTouch: new Date(row.last_touch),
     }))
   } catch (error) {
     throw new QueryError(
       'Failed to find support/resistance levels',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT support/resistance FROM price_ticks',
-      [symbol, tolerance, minTouches, range.from, range.to]
+      [symbol, tolerance, minTouches, range.from, range.to],
     )
   }
 }
@@ -662,7 +654,7 @@ export async function calculateCorrelation(
   symbol1: string,
   symbol2: string,
   range: TimeRange,
-  _options: AnalyticsOptions = {}
+  _options: AnalyticsOptions = {},
 ): Promise<CorrelationResult> {
   validateSymbol(symbol1)
   validateSymbol(symbol2)
@@ -692,7 +684,7 @@ export async function calculateCorrelation(
     }>
 
     const result = results[0]
-    
+
     if (!result || result.sample_size < 2) {
       throw new QueryError('Insufficient data for correlation calculation')
     }
@@ -703,14 +695,14 @@ export async function calculateCorrelation(
       correlation: result.correlation ?? 0,
       pValue: 0, // Would need additional statistical calculation
       sampleSize: result.sample_size,
-      timeRange: range
+      timeRange: range,
     }
   } catch (error) {
     throw new QueryError(
       'Failed to calculate correlation',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT correlation FROM price_ticks',
-      [symbol1, symbol2, range.from, range.to]
+      [symbol1, symbol2, range.from, range.to],
     )
   }
 }

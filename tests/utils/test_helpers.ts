@@ -2,7 +2,19 @@
  * Test helper utilities
  */
 
-import type { PriceTick, Ohlc, TimeRange } from '../../src/types/interfaces.ts'
+import type { Ohlc, PriceTick, TimeRange } from '../../src/types/interfaces.ts'
+
+/**
+ * Test environment interface for integration tests
+ */
+export interface TestEnvironment {
+  cleanup: () => Promise<void>
+  config: {
+    host: string
+    port: number
+    database: string
+  }
+}
 
 /**
  * Simple logger for testing that captures log messages
@@ -32,7 +44,7 @@ export class TestLogger {
     this.logs.push({
       level: 'error',
       message,
-      ...(error ? { meta: { error: error.message, stack: error.stack } } : {})
+      ...(error ? { meta: { error: error.message, stack: error.stack } } : {}),
     })
   }
 
@@ -41,7 +53,7 @@ export class TestLogger {
   }
 
   getLogsByLevel(level: string): LogEntry[] {
-    return this.logs.filter(log => log.level === level)
+    return this.logs.filter((log) => log.level === level)
   }
 
   clear(): void {
@@ -49,13 +61,13 @@ export class TestLogger {
   }
 
   hasErrorLogs(): boolean {
-    return this.logs.some(log => log.level === 'error')
+    return this.logs.some((log) => log.level === 'error')
   }
 
   getErrorMessages(): string[] {
     return this.logs
-      .filter(log => log.level === 'error')
-      .map(log => log.message)
+      .filter((log) => log.level === 'error')
+      .map((log) => log.message)
   }
 }
 
@@ -152,9 +164,9 @@ export function isValidVolume(volume: number | undefined): boolean {
 
 export function isValidSymbol(symbol: string): boolean {
   return typeof symbol === 'string' &&
-         symbol.length > 0 &&
-         symbol.length <= 20 &&
-         /^[A-Z0-9_]+$/.test(symbol)
+    symbol.length > 0 &&
+    symbol.length <= 20 &&
+    /^[A-Z0-9_]+$/.test(symbol)
 }
 
 export function isValidTimestamp(timestamp: string): boolean {
@@ -231,9 +243,9 @@ export function validateMarketData(ticks: PriceTick[]): void {
     const prev = ticks[i - 1]!
     const curr = ticks[i]!
     const changePercent = Math.abs(curr.price - prev.price) / prev.price
-    
+
     if (changePercent > 0.5) {
-      throw new Error(`Unrealistic price movement between tick ${i-1} and ${i}: ${changePercent * 100}%`)
+      throw new Error(`Unrealistic price movement between tick ${i - 1} and ${i}: ${changePercent * 100}%`)
     }
   }
 }
@@ -267,43 +279,41 @@ export interface PerformanceMetrics {
   maxLatencyMs: number
 }
 
-export function measurePerformance<T>(
+export async function measurePerformance<T>(
   operation: () => Promise<T>,
-  iterations: number = 100
+  iterations: number = 100,
 ): Promise<{ result: T; metrics: PerformanceMetrics }> {
-  return new Promise(async (resolve) => {
-    const latencies: number[] = []
-    let result: T | undefined
+  const latencies: number[] = []
+  let result: T | undefined
 
-    const startTime = performance.now()
+  const startTime = performance.now()
 
-    for (let i = 0; i < iterations; i++) {
-      const iterStartTime = performance.now()
-      result = await operation()
-      const iterEndTime = performance.now()
-      latencies.push(iterEndTime - iterStartTime)
-    }
+  for (let i = 0; i < iterations; i++) {
+    const iterStartTime = performance.now()
+    result = await operation()
+    const iterEndTime = performance.now()
+    latencies.push(iterEndTime - iterStartTime)
+  }
 
-    const endTime = performance.now()
-    const totalDuration = endTime - startTime
+  const endTime = performance.now()
+  const totalDuration = endTime - startTime
 
-    const metrics: PerformanceMetrics = {
-      durationMs: totalDuration,
-      operationsPerSecond: iterations / (totalDuration / 1000),
-      avgLatencyMs: latencies.reduce((sum, lat) => sum + lat, 0) / latencies.length,
-      minLatencyMs: Math.min(...latencies),
-      maxLatencyMs: Math.max(...latencies)
-    }
+  const metrics: PerformanceMetrics = {
+    durationMs: totalDuration,
+    operationsPerSecond: iterations / (totalDuration / 1000),
+    avgLatencyMs: latencies.reduce((sum, lat) => sum + lat, 0) / latencies.length,
+    minLatencyMs: Math.min(...latencies),
+    maxLatencyMs: Math.max(...latencies),
+  }
 
-    resolve({ result: result!, metrics })
-  })
+  return { result: result!, metrics }
 }
 
 /**
  * Async testing utilities
  */
 export function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 export function timeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
@@ -311,7 +321,7 @@ export function timeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
     promise,
     new Promise<T>((_, reject) =>
       setTimeout(() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)), timeoutMs)
-    )
+    ),
   ])
 }
 
@@ -347,21 +357,21 @@ export class TestHelpers {
   /**
    * Create test environment for integration tests
    */
-  static createTestEnvironment(): any {
+  static createTestEnvironment(): TestEnvironment {
     return {
       cleanup: () => Promise.resolve(),
       config: {
         host: 'localhost',
         port: 5432,
-        database: 'test_db'
-      }
+        database: 'test_db',
+      },
     }
   }
 
   /**
    * Cleanup test environment
    */
-  static cleanupTestEnvironment(env: any): Promise<void> {
+  static cleanupTestEnvironment(env: TestEnvironment): Promise<void> {
     return env?.cleanup ? env.cleanup() : Promise.resolve()
   }
 }
@@ -385,7 +395,7 @@ export class TimingHelpers {
   static async assertExecutionTime<T>(
     operation: () => Promise<T>,
     maxTimeMs: number,
-    errorMessage?: string
+    errorMessage?: string,
   ): Promise<T> {
     const startTime = performance.now()
     const result = await operation()
@@ -394,7 +404,7 @@ export class TimingHelpers {
 
     if (duration > maxTimeMs) {
       throw new Error(
-        errorMessage || `Operation took ${duration}ms, expected ≤ ${maxTimeMs}ms`
+        errorMessage || `Operation took ${duration}ms, expected ≤ ${maxTimeMs}ms`,
       )
     }
 

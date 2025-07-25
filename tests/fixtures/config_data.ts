@@ -1,21 +1,13 @@
 /**
  * Test configuration data for TimescaleDB client testing
- * 
+ *
  * Provides various configuration scenarios for testing client initialization,
  * validation, and different operational modes.
  */
 
-import type {
-  ConnectionConfig,
-  ClientOptions
-} from '../../src/types/config.ts'
+import type { ClientOptions, ConnectionConfig } from '../../src/types/config.ts'
 import type { TimescaleClientConfig } from '../../src/client.ts'
-import type {
-  ValidationError,
-  QueryError,
-  ConnectionError,
-  BatchError
-} from '../../src/types/errors.ts'
+import type { BatchError, ConnectionError, QueryError, ValidationError } from '../../src/types/errors.ts'
 
 /**
  * Valid connection configurations for testing
@@ -27,7 +19,7 @@ export const VALID_CONNECTIONS: Record<string, ConnectionConfig> = {
     database: 'timescale_test',
     username: 'postgres',
     password: 'test123',
-    ssl: false
+    ssl: false,
   },
 
   withSSL: {
@@ -38,16 +30,16 @@ export const VALID_CONNECTIONS: Record<string, ConnectionConfig> = {
     password: 'secure_password',
     ssl: {
       rejectUnauthorized: true,
-      ca: '-----BEGIN CERTIFICATE-----\ntest_ca_cert\n-----END CERTIFICATE-----'
-    }
+      ca: '-----BEGIN CERTIFICATE-----\ntest_ca_cert\n-----END CERTIFICATE-----',
+    },
   },
 
   connectionString: {
-    connectionString: 'postgresql://user:password@localhost:5432/timescale_test?sslmode=disable'
+    connectionString: 'postgresql://user:password@localhost:5432/timescale_test?sslmode=disable',
   },
 
   cloudService: {
-    connectionString: 'postgresql://user:password@cloud.timescale.com:5432/tsdb?sslmode=require'
+    connectionString: 'postgresql://user:password@cloud.timescale.com:5432/tsdb?sslmode=require',
   },
 
   withPool: {
@@ -59,8 +51,8 @@ export const VALID_CONNECTIONS: Record<string, ConnectionConfig> = {
     maxConnections: 20,
     maxLifetime: 3600,
     idleTimeout: 300,
-    connectTimeout: 10
-  }
+    connectTimeout: 10,
+  },
 } as const
 
 /**
@@ -71,14 +63,14 @@ export const INVALID_CONNECTIONS = {
     port: 5432,
     database: 'test',
     username: 'user',
-    password: 'pass'
+    password: 'pass',
   },
 
   missingDatabase: {
     host: 'localhost',
     port: 5432,
     username: 'user',
-    password: 'pass'
+    password: 'pass',
   },
 
   invalidPort: {
@@ -86,23 +78,23 @@ export const INVALID_CONNECTIONS = {
     port: -1,
     database: 'test',
     username: 'user',
-    password: 'pass'
+    password: 'pass',
   },
 
   emptyConnectionString: {
-    connectionString: ''
+    connectionString: '',
   },
 
   malformedConnectionString: {
-    connectionString: 'not-a-valid-connection-string'
+    connectionString: 'not-a-valid-connection-string',
   },
 
   missingCredentials: {
     host: 'localhost',
     port: 5432,
-    database: 'test'
+    database: 'test',
     // Missing username and password
-  }
+  },
 } as const
 
 /**
@@ -121,7 +113,7 @@ export const VALID_CLIENT_OPTIONS: Record<string, ClientOptions> = {
     collectStats: false,
     timezone: 'UTC',
     useStreaming: true,
-    streamingThreshold: 1000
+    streamingThreshold: 1000,
   },
 
   development: {
@@ -136,7 +128,7 @@ export const VALID_CLIENT_OPTIONS: Record<string, ClientOptions> = {
     collectStats: true,
     timezone: 'UTC',
     useStreaming: false,
-    streamingThreshold: 10000
+    streamingThreshold: 10000,
   },
 
   production: {
@@ -151,7 +143,7 @@ export const VALID_CLIENT_OPTIONS: Record<string, ClientOptions> = {
     collectStats: true,
     timezone: 'UTC',
     useStreaming: true,
-    streamingThreshold: 1000
+    streamingThreshold: 1000,
   },
 
   testing: {
@@ -166,12 +158,12 @@ export const VALID_CLIENT_OPTIONS: Record<string, ClientOptions> = {
     collectStats: false,
     timezone: 'UTC',
     useStreaming: false,
-    streamingThreshold: 10000
+    streamingThreshold: 10000,
   },
 
   minimal: {
     validateInputs: false,
-    collectStats: false
+    collectStats: false,
   },
 
   maxPerformance: {
@@ -183,8 +175,8 @@ export const VALID_CLIENT_OPTIONS: Record<string, ClientOptions> = {
     validateInputs: false,
     collectStats: false,
     useStreaming: true,
-    streamingThreshold: 100
-  }
+    streamingThreshold: 100,
+  },
 } as const
 
 /**
@@ -192,40 +184,40 @@ export const VALID_CLIENT_OPTIONS: Record<string, ClientOptions> = {
  */
 export const INVALID_CLIENT_OPTIONS = {
   negativeBatchSize: {
-    defaultBatchSize: -100
+    defaultBatchSize: -100,
   },
 
   zeroBatchSize: {
-    defaultBatchSize: 0
+    defaultBatchSize: 0,
   },
 
   oversizedBatchSize: {
-    defaultBatchSize: 50000 // Over 10,000 limit
+    defaultBatchSize: 50000, // Over 10,000 limit
   },
 
   negativeRetries: {
-    maxRetries: -1
+    maxRetries: -1,
   },
 
   negativeTimeout: {
-    queryTimeout: -1000
+    queryTimeout: -1000,
   },
 
   zeroTimeout: {
-    queryTimeout: 0
+    queryTimeout: 0,
   },
 
   negativeLimit: {
-    defaultLimit: -500
+    defaultLimit: -500,
   },
 
   oversizedLimit: {
-    defaultLimit: 50000 // Over 10,000 limit
+    defaultLimit: 50000, // Over 10,000 limit
   },
 
   invalidTimezone: {
-    timezone: 'Invalid/Timezone'
-  }
+    timezone: 'Invalid/Timezone',
+  },
 } as const
 
 /**
@@ -241,23 +233,23 @@ export const COMPLETE_CONFIGS: Record<string, TimescaleClientConfig> = {
       onValidationError: (error: ValidationError) => console.warn('Validation error:', error.message),
       onQueryError: (error: QueryError) => console.error('Query error:', error.message),
       onConnectionError: (error: ConnectionError) => console.error('Connection error:', error.message),
-      onBatchError: (error: BatchError) => console.error('Batch error:', error.message)
-    }
+      onBatchError: (error: BatchError) => console.error('Batch error:', error.message),
+    },
   },
 
   production: {
     ...VALID_CLIENT_OPTIONS.production,
     autoEnsureSchema: false,
     defaultInterval: '5m',
-    enableQueryStats: true
+    enableQueryStats: true,
   },
 
   testing: {
     ...VALID_CLIENT_OPTIONS.testing,
     autoEnsureSchema: true,
     defaultInterval: '1m',
-    enableQueryStats: false
-  }
+    enableQueryStats: false,
+  },
 } as const
 
 /**
@@ -271,11 +263,11 @@ export const ENV_CONFIGS = {
     TIMESCALE_QUERY_TIMEOUT: '30000',
     TIMESCALE_VALIDATE_INPUTS: 'true',
     TIMESCALE_AUTO_CREATE_TABLES: 'false',
-    TIMESCALE_COLLECT_STATS: 'true'
+    TIMESCALE_COLLECT_STATS: 'true',
   },
 
   minimal: {
-    TIMESCALE_CONNECTION_STRING: 'postgresql://localhost/test'
+    TIMESCALE_CONNECTION_STRING: 'postgresql://localhost/test',
   },
 
   individual: {
@@ -283,15 +275,15 @@ export const ENV_CONFIGS = {
     PGPORT: '5432',
     PGDATABASE: 'timescale_test',
     PGUSER: 'postgres',
-    PGPASSWORD: 'test123'
+    PGPASSWORD: 'test123',
   },
 
   withSSL: {
     TIMESCALE_CONNECTION_STRING: 'postgresql://user:pass@secure.host:5432/db?sslmode=require',
     TIMESCALE_SSL_CA: '/path/to/ca.crt',
     TIMESCALE_SSL_CERT: '/path/to/client.crt',
-    TIMESCALE_SSL_KEY: '/path/to/client.key'
-  }
+    TIMESCALE_SSL_KEY: '/path/to/client.key',
+  },
 } as const
 
 /**
@@ -306,8 +298,8 @@ export const BUILDER_SCENARIOS = {
       port: 5432,
       database: 'test',
       username: undefined,
-      password: undefined
-    }
+      password: undefined,
+    },
   },
 
   withAuth: {
@@ -320,8 +312,8 @@ export const BUILDER_SCENARIOS = {
       port: 5432,
       database: 'test',
       username: 'user',
-      password: 'pass'
-    }
+      password: 'pass',
+    },
   },
 
   withSSL: {
@@ -332,8 +324,8 @@ export const BUILDER_SCENARIOS = {
       host: 'secure.host',
       port: 5432,
       database: 'prod',
-      ssl: true
-    }
+      ssl: true,
+    },
   },
 
   withPool: {
@@ -346,9 +338,9 @@ export const BUILDER_SCENARIOS = {
       port: 5432,
       database: 'test',
       max: 20,
-      idleTimeout: 300
-    }
-  }
+      idleTimeout: 300,
+    },
+  },
 } as const
 
 /**
@@ -361,8 +353,8 @@ export const PRESET_SCENARIOS = {
       autoCreateTables: true,
       validateInputs: true,
       collectStats: true,
-      maxRetries: 3
-    }
+      maxRetries: 3,
+    },
   },
 
   production: {
@@ -372,8 +364,8 @@ export const PRESET_SCENARIOS = {
       validateInputs: false,
       collectStats: true,
       maxRetries: 5,
-      ssl: true
-    }
+      ssl: true,
+    },
   },
 
   testing: {
@@ -382,8 +374,8 @@ export const PRESET_SCENARIOS = {
       autoCreateTables: true,
       validateInputs: true,
       collectStats: false,
-      maxRetries: 1
-    }
+      maxRetries: 1,
+    },
   },
 
   cloud: {
@@ -391,9 +383,9 @@ export const PRESET_SCENARIOS = {
     expectedOptions: {
       ssl: true,
       maxRetries: 5,
-      queryTimeout: 60000
-    }
-  }
+      queryTimeout: 60000,
+    },
+  },
 } as const
 
 /**
@@ -407,7 +399,7 @@ export function createTestConnectionConfig(overrides: Partial<ConnectionConfig> 
     username: 'postgres',
     password: 'test123',
     ssl: false,
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -428,7 +420,7 @@ export function createTestClientOptions(overrides: Partial<ClientOptions> = {}):
     timezone: 'UTC',
     useStreaming: false,
     streamingThreshold: 1000,
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -437,7 +429,7 @@ export function createTestClientOptions(overrides: Partial<ClientOptions> = {}):
  */
 export function createTestConfig(
   connectionOverrides: Partial<ConnectionConfig> = {},
-  clientOverrides: Partial<TimescaleClientConfig> = {}
+  clientOverrides: Partial<TimescaleClientConfig> = {},
 ): { connectionConfig: ConnectionConfig; clientOptions: TimescaleClientConfig } {
   return {
     connectionConfig: createTestConnectionConfig(connectionOverrides),
@@ -446,8 +438,8 @@ export function createTestConfig(
       autoEnsureSchema: true,
       defaultInterval: '1m',
       enableQueryStats: false,
-      ...clientOverrides
-    }
+      ...clientOverrides,
+    },
   }
 }
 
@@ -458,7 +450,7 @@ export const MOCK_LOGGER = {
   debug: (message: string, ...args: unknown[]) => console.debug(`[DEBUG] ${message}`, ...args),
   info: (message: string, ...args: unknown[]) => console.info(`[INFO] ${message}`, ...args),
   warn: (message: string, ...args: unknown[]) => console.warn(`[WARN] ${message}`, ...args),
-  error: (message: string, ...args: unknown[]) => console.error(`[ERROR] ${message}`, ...args)
+  error: (message: string, ...args: unknown[]) => console.error(`[ERROR] ${message}`, ...args),
 } as const
 
 /**
@@ -468,41 +460,41 @@ export const VALIDATION_TEST_CASES = [
   {
     name: 'valid minimal config',
     config: { validateInputs: true },
-    shouldPass: true
+    shouldPass: true,
   },
   {
     name: 'valid complete config',
     config: VALID_CLIENT_OPTIONS.default,
-    shouldPass: true
+    shouldPass: true,
   },
   {
     name: 'invalid batch size - negative',
     config: { defaultBatchSize: -100 },
     shouldPass: false,
-    expectedError: 'defaultBatchSize'
+    expectedError: 'defaultBatchSize',
   },
   {
     name: 'invalid batch size - too large',
     config: { defaultBatchSize: 50000 },
     shouldPass: false,
-    expectedError: 'defaultBatchSize'
+    expectedError: 'defaultBatchSize',
   },
   {
     name: 'invalid retries - negative',
     config: { maxRetries: -1 },
     shouldPass: false,
-    expectedError: 'maxRetries'
+    expectedError: 'maxRetries',
   },
   {
     name: 'invalid timeout - negative',
     config: { queryTimeout: -1000 },
     shouldPass: false,
-    expectedError: 'queryTimeout'
+    expectedError: 'queryTimeout',
   },
   {
     name: 'invalid limit - too large',
     config: { defaultLimit: 50000 },
     shouldPass: false,
-    expectedError: 'defaultLimit'
-  }
+    expectedError: 'defaultLimit',
+  },
 ] as const

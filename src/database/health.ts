@@ -1,21 +1,34 @@
 /**
  * Health monitoring system for TimescaleDB client
- * 
+ *
  * Provides comprehensive health checks, monitoring, and alerting
  * for database connections, schema validation, and performance metrics.
  */
 
 import type { ClientOptions, Logger } from '../types/config.ts'
-import type {
-  SqlInstance,
-  SchemaValidationResult,
-  ConnectionHealthMetrics
-} from '../types/internal.ts'
-import {
-  SchemaError,
-  TimeoutError
-} from '../types/errors.ts'
+import type { ConnectionHealthMetrics, SchemaValidationResult, SqlInstance } from '../types/internal.ts'
+import { SchemaError, TimeoutError } from '../types/errors.ts'
 import { ConnectionPool } from './pool.ts'
+
+/**
+ * Database result interfaces for type safety
+ */
+interface ExtensionResult {
+  extname: string
+  extversion: string
+}
+
+interface TableResult {
+  tablename: string
+}
+
+interface HypertableResult {
+  hypertable_name: string
+}
+
+interface IndexResult {
+  indexname: string
+}
 
 /**
  * Health check configuration
@@ -101,7 +114,7 @@ export class HealthChecker {
     pool: ConnectionPool,
     logger?: Logger | undefined,
     clientOptions: ClientOptions = {},
-    alertConfig: AlertConfig = { enabled: false }
+    alertConfig: AlertConfig = { enabled: false },
   ) {
     this.pool = pool
     this.logger = logger
@@ -128,17 +141,17 @@ export class HealthChecker {
 
     this.logger?.info('Starting health monitoring', {
       interval: this.config.intervalMs,
-      timeout: this.config.timeoutMs
+      timeout: this.config.timeoutMs,
     })
 
     this.intervalHandle = setInterval(() => {
-      this.performHealthCheck().catch(error => {
+      this.performHealthCheck().catch((error) => {
         this.logger?.error('Health check failed', error instanceof Error ? error : new Error(String(error)))
       })
     }, this.config.intervalMs)
 
     // Perform initial health check
-    this.performHealthCheck().catch(error => {
+    this.performHealthCheck().catch((error) => {
       this.logger?.error('Initial health check failed', error instanceof Error ? error : new Error(String(error)))
     })
   }
@@ -171,18 +184,20 @@ export class HealthChecker {
       // Create timeout promise
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => {
-          reject(new TimeoutError(
-            `Health check timed out after ${this.config.timeoutMs}ms`,
-            this.config.timeoutMs,
-            'health_check'
-          ))
+          reject(
+            new TimeoutError(
+              `Health check timed out after ${this.config.timeoutMs}ms`,
+              this.config.timeoutMs,
+              'health_check',
+            ),
+          )
         }, this.config.timeoutMs)
       })
 
       // Race health check against timeout
       const result = await Promise.race([
         this.runHealthChecks(timestamp),
-        timeoutPromise
+        timeoutPromise,
       ])
 
       // Update state
@@ -192,7 +207,7 @@ export class HealthChecker {
       this.logger?.debug('Health check completed', {
         duration: Date.now() - startTime,
         score: result.score,
-        isHealthy: result.isHealthy
+        isHealthy: result.isHealthy,
       })
 
       return result
@@ -200,7 +215,7 @@ export class HealthChecker {
       const errorResult = this.createErrorResult(timestamp, error)
       this.updateHealthState(errorResult)
       this.recordHealthResult(errorResult)
-      
+
       throw error
     }
   }
@@ -217,12 +232,12 @@ export class HealthChecker {
     score: number
   } {
     const lastResult = this.healthHistory[this.healthHistory.length - 1]
-    
+
     return {
       isHealthy: this.isCurrentlyHealthy,
       lastCheck: this.lastHealthCheck,
       consecutiveFailures: this.consecutiveFailures,
-      score: lastResult?.score || 0
+      score: lastResult?.score || 0,
     }
   }
 
@@ -265,12 +280,12 @@ export class HealthChecker {
       }
 
       // Check if TimescaleDB is installed
-      const timescaleExt = extensionResult.find(ext => ext.extname === 'timescaledb')
+      const timescaleExt = extensionResult.find((ext) => (ext as ExtensionResult).extname === 'timescaledb')
       if (!timescaleExt) {
         return {
           isValid: false,
           extensions,
-          warnings: ['TimescaleDB extension is not installed']
+          warnings: ['TimescaleDB extension is not installed'],
         }
       }
 
@@ -285,13 +300,13 @@ export class HealthChecker {
         isValid: true,
         version,
         extensions,
-        warnings
+        warnings,
       }
     } catch (error) {
       throw new SchemaError(
         'Failed to validate TimescaleDB extension',
         undefined,
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       )
     }
   }
@@ -312,7 +327,7 @@ export class HealthChecker {
 
       // Expected tables
       const expectedTables = ['price_ticks', 'ohlc_data']
-      
+
       // Check if tables exist
       const tableResult = await sql`
         SELECT tablename 
@@ -321,8 +336,8 @@ export class HealthChecker {
         AND tablename = ANY(${expectedTables})
       `
 
-      const existingTables = tableResult.map(row => row.tablename as string)
-      missingTables.push(...expectedTables.filter(table => !existingTables.includes(table)))
+      const existingTables = tableResult.map((row) => (row as TableResult).tablename)
+      missingTables.push(...expectedTables.filter((table) => !existingTables.includes(table)))
 
       // Check hypertables
       if (existingTables.length > 0) {
@@ -332,15 +347,15 @@ export class HealthChecker {
           WHERE hypertable_name = ANY(${existingTables})
         `
 
-        const hypertables = hypertableResult.map(row => row.hypertable_name as string)
-        nonHypertables.push(...existingTables.filter(table => !hypertables.includes(table)))
+        const hypertables = hypertableResult.map((row) => (row as HypertableResult).hypertable_name)
+        nonHypertables.push(...existingTables.filter((table: string) => !hypertables.includes(table)))
       }
 
       // Check indexes
       const expectedIndexes = [
         'ix_price_ticks_symbol_time',
         'ix_price_ticks_time',
-        'ix_ohlc_data_symbol_time'
+        'ix_ohlc_data_symbol_time',
       ]
 
       const indexResult = await sql`
@@ -350,8 +365,8 @@ export class HealthChecker {
         AND indexname = ANY(${expectedIndexes})
       `
 
-      const existingIndexes = indexResult.map(row => row.indexname as string)
-      missingIndexes.push(...expectedIndexes.filter(index => !existingIndexes.includes(index)))
+      const existingIndexes = indexResult.map((row) => (row as IndexResult).indexname)
+      missingIndexes.push(...expectedIndexes.filter((index) => !existingIndexes.includes(index)))
 
       // Add warnings for missing components
       if (missingTables.length > 0) {
@@ -371,13 +386,13 @@ export class HealthChecker {
         missingTables,
         missingIndexes,
         nonHypertables,
-        warnings
+        warnings,
       }
     } catch (error) {
       throw new SchemaError(
         'Failed to validate database schema',
         undefined,
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       )
     }
   }
@@ -394,17 +409,17 @@ export class HealthChecker {
     issues: string[]
   }> {
     const issues: string[] = []
-    
+
     try {
       const startTime = Date.now()
-      
+
       // Test query performance
       await sql`SELECT 1 as performance_test`
       const queryTime = Date.now() - startTime
 
       // Get connection stats
       const poolStats = this.pool.getStats()
-      
+
       // Calculate metrics
       const metrics: ConnectionHealthMetrics = {
         connectionTimeMs: queryTime,
@@ -412,7 +427,7 @@ export class HealthChecker {
         failedQueries: poolStats.errorCount,
         successfulQueries: poolStats.totalQueries - poolStats.errorCount,
         avgQueryTimeMs: poolStats.averageQueryTime,
-        uptimeSeconds: 0 // Will be calculated by caller
+        uptimeSeconds: 0, // Will be calculated by caller
       }
 
       // Check against thresholds
@@ -424,35 +439,35 @@ export class HealthChecker {
         issues.push(`Average query time ${poolStats.averageQueryTime}ms exceeds threshold`)
       }
 
-      const errorRate = poolStats.totalQueries > 0 
-        ? (poolStats.errorCount / poolStats.totalQueries) * 100 
-        : 0
+      const errorRate = poolStats.totalQueries > 0 ? (poolStats.errorCount / poolStats.totalQueries) * 100 : 0
 
       if (errorRate > this.performanceThresholds.maxErrorRatePercent) {
-        issues.push(`Error rate ${errorRate.toFixed(2)}% exceeds threshold ${this.performanceThresholds.maxErrorRatePercent}%`)
+        issues.push(
+          `Error rate ${errorRate.toFixed(2)}% exceeds threshold ${this.performanceThresholds.maxErrorRatePercent}%`,
+        )
       }
 
       return {
         isHealthy: issues.length === 0,
         metrics,
-        issues
+        issues,
       }
     } catch (error) {
       issues.push(`Performance check failed: ${error instanceof Error ? error.message : String(error)}`)
-      
+
       const metrics: ConnectionHealthMetrics = {
         connectionTimeMs: -1,
         lastQueryTime: new Date(),
         failedQueries: 0,
         successfulQueries: 0,
         avgQueryTimeMs: -1,
-        uptimeSeconds: 0
+        uptimeSeconds: 0,
       }
 
       return {
         isHealthy: false,
         metrics,
-        issues
+        issues,
       }
     }
   }
@@ -467,7 +482,7 @@ export class HealthChecker {
       connection: false,
       timescaleDB: false,
       schema: false,
-      performance: false
+      performance: false,
     }
 
     let metrics: ConnectionHealthMetrics = {
@@ -476,7 +491,7 @@ export class HealthChecker {
       failedQueries: 0,
       successfulQueries: 0,
       avgQueryTimeMs: -1,
-      uptimeSeconds: 0
+      uptimeSeconds: 0,
     }
 
     try {
@@ -545,7 +560,7 @@ export class HealthChecker {
       checks,
       metrics,
       warnings,
-      errors
+      errors,
     }
   }
 
@@ -555,17 +570,17 @@ export class HealthChecker {
   private calculateHealthScore(
     checks: Record<string, boolean>,
     errorCount: number,
-    warningCount: number
+    warningCount: number,
   ): number {
     const checkCount = Object.keys(checks).length
     const passedChecks = Object.values(checks).filter(Boolean).length
-    
+
     let score = (passedChecks / checkCount) * 100
-    
+
     // Deduct points for errors and warnings
     score -= errorCount * 20
     score -= warningCount * 5
-    
+
     return Math.max(0, Math.min(100, score))
   }
 
@@ -608,7 +623,7 @@ export class HealthChecker {
    */
   private recordHealthResult(result: HealthCheckResult): void {
     this.healthHistory.push(result)
-    
+
     // Keep only last 100 results
     if (this.healthHistory.length > 100) {
       this.healthHistory.shift()
@@ -620,7 +635,7 @@ export class HealthChecker {
    */
   private createErrorResult(timestamp: Date, error: unknown): HealthCheckResult {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    
+
     return {
       timestamp,
       isHealthy: false,
@@ -629,7 +644,7 @@ export class HealthChecker {
         connection: false,
         timescaleDB: false,
         schema: false,
-        performance: false
+        performance: false,
       },
       metrics: {
         connectionTimeMs: -1,
@@ -637,10 +652,10 @@ export class HealthChecker {
         failedQueries: 0,
         successfulQueries: 0,
         avgQueryTimeMs: -1,
-        uptimeSeconds: 0
+        uptimeSeconds: 0,
       },
       warnings: [],
-      errors: [errorMessage]
+      errors: [errorMessage],
     }
   }
 
@@ -672,7 +687,7 @@ export class HealthChecker {
     } catch (error) {
       // Non-critical error, just log it
       this.logger?.debug('Could not check TimescaleDB settings', {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       })
     }
   }
@@ -689,7 +704,7 @@ export class HealthChecker {
       warningThreshold: 1,
       checkTimescaleDB: true,
       checkSchema: true,
-      checkPerformance: true
+      checkPerformance: true,
     }
   }
 
@@ -701,7 +716,7 @@ export class HealthChecker {
       maxQueryTimeMs: clientOptions.queryTimeout || 5000,
       maxConnectionTimeMs: 2000,
       minThroughputQps: 10,
-      maxErrorRatePercent: 5
+      maxErrorRatePercent: 5,
     }
   }
 }
@@ -713,7 +728,7 @@ export function createHealthChecker(
   pool: ConnectionPool,
   logger?: Logger,
   clientOptions: ClientOptions = {},
-  alertConfig: AlertConfig = { enabled: false }
+  alertConfig: AlertConfig = { enabled: false },
 ): HealthChecker {
   return new HealthChecker(pool, logger, clientOptions, alertConfig)
 }

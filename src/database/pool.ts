@@ -1,19 +1,13 @@
 /**
  * Connection pool management for TimescaleDB client
- * 
+ *
  * Provides advanced connection pooling with metrics, health monitoring,
  * retry logic, and graceful shutdown capabilities.
  */
 
-
-
-import type { ConnectionConfig, ClientOptions, Logger } from '../types/config.ts'
-import type { SqlInstance, ConnectionState, RetryConfig } from '../types/internal.ts'
-import {
-  ConnectionError,
-  TimeoutError,
-  ErrorUtils
-} from '../types/errors.ts'
+import type { ClientOptions, ConnectionConfig, Logger } from '../types/config.ts'
+import type { ConnectionState, RetryConfig, SqlInstance } from '../types/internal.ts'
+import { ConnectionError, ErrorUtils, TimeoutError } from '../types/errors.ts'
 import { DatabaseConnection } from './connection.ts'
 
 /**
@@ -60,7 +54,7 @@ export class ConnectionPool {
   private readonly config: PoolConfig
   private connectionConfig: ConnectionConfig
   private readonly logger?: Logger | undefined
-  
+
   // Pool state tracking
   private totalQueries = 0
   private totalErrors = 0
@@ -78,7 +72,7 @@ export class ConnectionPool {
   constructor(
     connectionConfig: ConnectionConfig,
     logger?: Logger | undefined,
-    clientOptions: ClientOptions = {}
+    clientOptions: ClientOptions = {},
   ) {
     this.connectionConfig = { ...connectionConfig }
     this.logger = logger
@@ -108,7 +102,7 @@ export class ConnectionPool {
 
     // Create new connection with retry logic
     this.connectionPromise = this.createConnectionWithRetry()
-    
+
     try {
       this.sql = await this.connectionPromise
       return this.sql
@@ -125,7 +119,7 @@ export class ConnectionPool {
    * @throws Any error thrown by the query function
    */
   async query<T = Record<string, unknown>>(
-    queryFn: (sql: SqlInstance) => Promise<T>
+    queryFn: (sql: SqlInstance) => Promise<T>,
   ): Promise<T> {
     const startTime = Date.now()
     let sql: SqlInstance | null = null
@@ -133,20 +127,20 @@ export class ConnectionPool {
     try {
       sql = await this.acquire()
       const result = await queryFn(sql)
-      
+
       // Record successful query metrics
       const duration = Date.now() - startTime
       this.recordQueryMetrics(duration, false)
-      
+
       return result
     } catch (error) {
       // Record error metrics
       const duration = Date.now() - startTime
       this.recordQueryMetrics(duration, true)
-      
+
       this.logger?.error('Query execution failed', error instanceof Error ? error : new Error(String(error)), {
         duration,
-        totalQueries: this.totalQueries
+        totalQueries: this.totalQueries,
       })
 
       throw error
@@ -164,7 +158,7 @@ export class ConnectionPool {
    */
   async queryWithRetry<T = Record<string, unknown>>(
     queryFn: (sql: SqlInstance) => Promise<T>,
-    timeoutMs?: number
+    timeoutMs?: number,
   ): Promise<T> {
     const timeout = timeoutMs || this.config.acquireTimeout
     const retryConfig = this.config.retryConfig
@@ -174,22 +168,24 @@ export class ConnectionPool {
         // Create timeout promise
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => {
-            reject(new TimeoutError(
-              `Query timed out after ${timeout}ms`,
-              timeout,
-              'query_execution'
-            ))
+            reject(
+              new TimeoutError(
+                `Query timed out after ${timeout}ms`,
+                timeout,
+                'query_execution',
+              ),
+            )
           }, timeout)
         })
 
         // Race between query and timeout
         return await Promise.race([
           this.query(queryFn),
-          timeoutPromise
+          timeoutPromise,
         ])
       } catch (error) {
         const isLastAttempt = attempt === retryConfig.maxRetries
-        
+
         if (isLastAttempt || !ErrorUtils.isRetryableError(error)) {
           throw error
         }
@@ -199,7 +195,7 @@ export class ConnectionPool {
         this.logger?.warn(`Query attempt ${attempt + 1} failed, retrying in ${delay}ms`, {
           error: error instanceof Error ? error.message : String(error),
           attempt: attempt + 1,
-          maxRetries: retryConfig.maxRetries
+          maxRetries: retryConfig.maxRetries,
         })
 
         await this.sleep(delay)
@@ -227,7 +223,7 @@ export class ConnectionPool {
       totalConnections: this.sql ? 1 : 0,
       totalQueries: this.totalQueries,
       averageQueryTime: avgQueryTime,
-      errorCount: this.totalErrors
+      errorCount: this.totalErrors,
     }
   }
 
@@ -238,7 +234,7 @@ export class ConnectionPool {
    */
   getConnectionState(): ConnectionState {
     const stats = this.getStats()
-    
+
     return {
       isConnected: this.sql !== null,
       activeQueries: 0, // postgres.js tracks this internally
@@ -246,8 +242,8 @@ export class ConnectionPool {
         total: stats.total,
         idle: stats.idle,
         active: stats.active,
-        waiting: stats.waiting
-      }
+        waiting: stats.waiting,
+      },
     }
   }
 
@@ -288,19 +284,19 @@ export class ConnectionPool {
       if (newPassword) {
         this.connectionConfig = {
           ...this.connectionConfig,
-          password: newPassword
+          password: newPassword,
         }
       }
 
       // Re-establish connection
       await this.acquire()
-      
+
       this.logger?.info('Database connection refreshed successfully')
     } catch (error) {
       this.logger?.error('Failed to refresh connection', error instanceof Error ? error : new Error(String(error)))
       throw new ConnectionError(
         'Failed to refresh database connection',
-        error instanceof Error ? error : new Error(String(error))
+        error instanceof Error ? error : new Error(String(error)),
       )
     }
   }
@@ -325,13 +321,13 @@ export class ConnectionPool {
       if (this.connectionPromise) {
         await Promise.race([
           this.connectionPromise,
-          this.sleep(timeoutMs)
+          this.sleep(timeoutMs),
         ])
       }
 
       // Close the connection
       await this.close()
-      
+
       this.logger?.info('Connection pool shutdown completed')
     } catch (error) {
       this.logger?.error('Error during shutdown', error instanceof Error ? error : new Error(String(error)))
@@ -362,7 +358,7 @@ export class ConnectionPool {
         return await this.connection.connect()
       } catch (error) {
         const isLastAttempt = attempt === retryConfig.maxRetries
-        
+
         if (isLastAttempt || !ErrorUtils.isRetryableError(error)) {
           throw error
         }
@@ -372,7 +368,7 @@ export class ConnectionPool {
         this.logger?.warn(`Connection attempt ${attempt + 1} failed, retrying in ${delay}ms`, {
           error: error instanceof Error ? error.message : String(error),
           attempt: attempt + 1,
-          maxRetries: retryConfig.maxRetries
+          maxRetries: retryConfig.maxRetries,
         })
 
         await this.sleep(delay)
@@ -388,13 +384,13 @@ export class ConnectionPool {
   private calculateRetryDelay(attempt: number, config: RetryConfig): number {
     const exponentialDelay = config.baseDelay * Math.pow(config.backoffMultiplier, attempt)
     const cappedDelay = Math.min(exponentialDelay, config.maxDelay)
-    
+
     if (config.useJitter) {
       // Add random jitter (±25%)
       const jitter = cappedDelay * 0.25 * (Math.random() - 0.5)
       return Math.max(0, cappedDelay + jitter)
     }
-    
+
     return cappedDelay
   }
 
@@ -403,7 +399,7 @@ export class ConnectionPool {
    */
   private recordQueryMetrics(duration: number, isError: boolean): void {
     this.totalQueries++
-    
+
     if (isError) {
       this.totalErrors++
     }
@@ -420,7 +416,7 @@ export class ConnectionPool {
    */
   private buildPoolConfig(
     connectionConfig: ConnectionConfig,
-    clientOptions: ClientOptions
+    clientOptions: ClientOptions,
   ): PoolConfig {
     const maxLifetime = connectionConfig.maxLifetime
     return {
@@ -433,9 +429,9 @@ export class ConnectionPool {
         baseDelay: clientOptions.retryBaseDelay || 1000,
         maxDelay: 30000,
         backoffMultiplier: 2,
-        useJitter: true
+        useJitter: true,
       },
-      ...(maxLifetime !== undefined && { maxLifetime })
+      ...(maxLifetime !== undefined && { maxLifetime }),
     }
   }
 
@@ -443,7 +439,7 @@ export class ConnectionPool {
    * Sleep utility for retry delays
    */
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms))
+    return new Promise((resolve) => setTimeout(resolve, ms))
   }
 }
 
@@ -453,7 +449,7 @@ export class ConnectionPool {
 export function createConnectionPool(
   connectionConfig: ConnectionConfig,
   logger?: Logger,
-  clientOptions: ClientOptions = {}
+  clientOptions: ClientOptions = {},
 ): ConnectionPool {
   return new ConnectionPool(connectionConfig, logger, clientOptions)
 }

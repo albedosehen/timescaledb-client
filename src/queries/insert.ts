@@ -1,17 +1,13 @@
 /**
  * Insert operations for TimescaleDB client
- * 
+ *
  * Provides optimized SQL builders for inserting price ticks and OHLC data
  * with batch processing, upsert operations, and performance monitoring.
  */
 
 import type { SqlInstance } from '../types/internal.ts'
-import type { PriceTick, Ohlc, BatchResult } from '../types/interfaces.ts'
-import {
-  ValidationError,
-  QueryError,
-  BatchError
-} from '../types/errors.ts'
+import type { BatchResult, Ohlc, PriceTick } from '../types/interfaces.ts'
+import { BatchError, QueryError, ValidationError } from '../types/errors.ts'
 
 /**
  * Insert configuration options
@@ -37,7 +33,7 @@ const DEFAULT_INSERT_OPTIONS: Required<InsertOptions> = {
   batchSize: 5000,
   useTransaction: true,
   timeoutMs: 30000,
-  validate: true
+  validate: true,
 }
 
 /**
@@ -46,10 +42,10 @@ const DEFAULT_INSERT_OPTIONS: Required<InsertOptions> = {
 export async function insertTick(
   sql: SqlInstance,
   tick: PriceTick,
-  options: InsertOptions = {}
+  options: InsertOptions = {},
 ): Promise<void> {
   const opts = { ...DEFAULT_INSERT_OPTIONS, ...options }
-  
+
   if (opts.validate) {
     validatePriceTick(tick)
   }
@@ -76,7 +72,7 @@ export async function insertTick(
       'Failed to insert price tick',
       error instanceof Error ? error : new Error(String(error)),
       'INSERT INTO price_ticks',
-      [tick.symbol, tick.price]
+      [tick.symbol, tick.price],
     )
   }
 }
@@ -87,10 +83,10 @@ export async function insertTick(
 export async function insertOhlc(
   sql: SqlInstance,
   candle: Ohlc,
-  options: InsertOptions = {}
+  options: InsertOptions = {},
 ): Promise<void> {
   const opts = { ...DEFAULT_INSERT_OPTIONS, ...options }
-  
+
   if (opts.validate) {
     validateOhlc(candle)
   }
@@ -99,7 +95,9 @@ export async function insertOhlc(
     if (opts.upsert) {
       await sql`
         INSERT INTO ohlc_data (time, symbol, interval_duration, open, high, low, close, volume)
-        VALUES (${candle.timestamp}, ${candle.symbol}, ${'1m'}, ${candle.open}, ${candle.high}, ${candle.low}, ${candle.close}, ${candle.volume || null})
+        VALUES (${candle.timestamp}, ${candle.symbol}, ${'1m'}, ${candle.open}, ${candle.high}, ${candle.low}, ${candle.close}, ${
+        candle.volume || null
+      })
         ON CONFLICT (symbol, interval_duration, time)
         DO UPDATE SET
           open = EXCLUDED.open,
@@ -112,7 +110,9 @@ export async function insertOhlc(
     } else {
       await sql`
         INSERT INTO ohlc_data (time, symbol, interval_duration, open, high, low, close, volume)
-        VALUES (${candle.timestamp}, ${candle.symbol}, ${'1m'}, ${candle.open}, ${candle.high}, ${candle.low}, ${candle.close}, ${candle.volume || null})
+        VALUES (${candle.timestamp}, ${candle.symbol}, ${'1m'}, ${candle.open}, ${candle.high}, ${candle.low}, ${candle.close}, ${
+        candle.volume || null
+      })
       `
     }
   } catch (error) {
@@ -120,7 +120,7 @@ export async function insertOhlc(
       'Failed to insert OHLC candle',
       error instanceof Error ? error : new Error(String(error)),
       'INSERT INTO ohlc_data',
-      [candle.symbol, candle.open, candle.high, candle.low, candle.close]
+      [candle.symbol, candle.open, candle.high, candle.low, candle.close],
     )
   }
 }
@@ -131,17 +131,17 @@ export async function insertOhlc(
 export async function insertManyTicks(
   sql: SqlInstance,
   ticks: PriceTick[],
-  options: InsertOptions = {}
+  options: InsertOptions = {},
 ): Promise<BatchResult> {
   const opts = { ...DEFAULT_INSERT_OPTIONS, ...options }
   const startTime = performance.now()
-  
+
   if (ticks.length === 0) {
     return {
       processed: 0,
       failed: 0,
       durationMs: 0,
-      errors: []
+      errors: [],
     }
   }
 
@@ -158,11 +158,11 @@ export async function insertManyTicks(
   try {
     // Process in chunks
     const chunks = chunkArray(ticks, opts.batchSize)
-    
+
     for (const chunk of chunks) {
       try {
         if (opts.useTransaction) {
-          await sql.begin(async (sql) => {
+          await sql.begin(async (sql: SqlInstance) => {
             await insertTickBatch(sql, chunk, opts.upsert)
           })
         } else {
@@ -182,7 +182,7 @@ export async function insertManyTicks(
         `Batch operation partially failed: ${processed} succeeded, ${failed} failed`,
         processed,
         failed,
-        errors
+        errors,
       )
     }
 
@@ -190,18 +190,18 @@ export async function insertManyTicks(
       processed,
       failed,
       durationMs,
-      errors: errors.length > 0 ? errors : undefined
+      errors: errors.length > 0 ? errors : undefined,
     }
   } catch (error) {
     if (error instanceof BatchError) {
       throw error
     }
-    
+
     throw new BatchError(
       'Batch tick insertion failed',
       processed,
       failed || ticks.length,
-      [error instanceof Error ? error : new Error(String(error))]
+      [error instanceof Error ? error : new Error(String(error))],
     )
   }
 }
@@ -212,17 +212,17 @@ export async function insertManyTicks(
 export async function insertManyOhlc(
   sql: SqlInstance,
   candles: Ohlc[],
-  options: InsertOptions = {}
+  options: InsertOptions = {},
 ): Promise<BatchResult> {
   const opts = { ...DEFAULT_INSERT_OPTIONS, ...options }
   const startTime = performance.now()
-  
+
   if (candles.length === 0) {
     return {
       processed: 0,
       failed: 0,
       durationMs: 0,
-      errors: []
+      errors: [],
     }
   }
 
@@ -239,11 +239,11 @@ export async function insertManyOhlc(
   try {
     // Process in chunks
     const chunks = chunkArray(candles, opts.batchSize)
-    
+
     for (const chunk of chunks) {
       try {
         if (opts.useTransaction) {
-          await sql.begin(async (sql) => {
+          await sql.begin(async (sql: SqlInstance) => {
             await insertOhlcBatch(sql, chunk, opts.upsert)
           })
         } else {
@@ -263,7 +263,7 @@ export async function insertManyOhlc(
         `Batch operation partially failed: ${processed} succeeded, ${failed} failed`,
         processed,
         failed,
-        errors
+        errors,
       )
     }
 
@@ -271,18 +271,18 @@ export async function insertManyOhlc(
       processed,
       failed,
       durationMs,
-      errors: errors.length > 0 ? errors : undefined
+      errors: errors.length > 0 ? errors : undefined,
     }
   } catch (error) {
     if (error instanceof BatchError) {
       throw error
     }
-    
+
     throw new BatchError(
       'Batch OHLC insertion failed',
       processed,
       failed || candles.length,
-      [error instanceof Error ? error : new Error(String(error))]
+      [error instanceof Error ? error : new Error(String(error))],
     )
   }
 }
@@ -293,13 +293,13 @@ export async function insertManyOhlc(
 async function insertTickBatch(
   sql: SqlInstance,
   ticks: PriceTick[],
-  upsert: boolean
+  upsert: boolean,
 ): Promise<void> {
-  const tickData = ticks.map(tick => ({
+  const tickData = ticks.map((tick) => ({
     time: tick.timestamp,
     symbol: tick.symbol,
     price: tick.price,
-    volume: tick.volume || null
+    volume: tick.volume || null,
   }))
 
   if (upsert) {
@@ -324,9 +324,9 @@ async function insertTickBatch(
 async function insertOhlcBatch(
   sql: SqlInstance,
   candles: Ohlc[],
-  upsert: boolean
+  upsert: boolean,
 ): Promise<void> {
-  const candleData = candles.map(candle => ({
+  const candleData = candles.map((candle) => ({
     time: candle.timestamp,
     symbol: candle.symbol,
     interval_duration: '1m', // Default interval
@@ -334,12 +334,14 @@ async function insertOhlcBatch(
     high: candle.high,
     low: candle.low,
     close: candle.close,
-    volume: candle.volume || null
+    volume: candle.volume || null,
   }))
 
   if (upsert) {
     await sql`
-      INSERT INTO ohlc_data ${sql(candleData, 'time', 'symbol', 'interval_duration', 'open', 'high', 'low', 'close', 'volume')}
+      INSERT INTO ohlc_data ${
+      sql(candleData, 'time', 'symbol', 'interval_duration', 'open', 'high', 'low', 'close', 'volume')
+    }
       ON CONFLICT (symbol, interval_duration, time)
       DO UPDATE SET
         open = EXCLUDED.open,
@@ -351,7 +353,9 @@ async function insertOhlcBatch(
     `
   } else {
     await sql`
-      INSERT INTO ohlc_data ${sql(candleData, 'time', 'symbol', 'interval_duration', 'open', 'high', 'low', 'close', 'volume')}
+      INSERT INTO ohlc_data ${
+      sql(candleData, 'time', 'symbol', 'interval_duration', 'open', 'high', 'low', 'close', 'volume')
+    }
     `
   }
 }
@@ -369,7 +373,11 @@ function validatePriceTick(tick: PriceTick): void {
   }
 
   if (!/^[A-Z0-9_]+$/.test(tick.symbol)) {
-    throw new ValidationError('Symbol must contain only uppercase letters, numbers, and underscores', 'symbol', tick.symbol)
+    throw new ValidationError(
+      'Symbol must contain only uppercase letters, numbers, and underscores',
+      'symbol',
+      tick.symbol,
+    )
   }
 
   if (typeof tick.price !== 'number' || !isFinite(tick.price) || tick.price <= 0) {
@@ -408,12 +416,16 @@ function validateOhlc(candle: Ohlc): void {
   }
 
   if (!/^[A-Z0-9_]+$/.test(candle.symbol)) {
-    throw new ValidationError('Symbol must contain only uppercase letters, numbers, and underscores', 'symbol', candle.symbol)
+    throw new ValidationError(
+      'Symbol must contain only uppercase letters, numbers, and underscores',
+      'symbol',
+      candle.symbol,
+    )
   }
 
   // Validate all OHLC prices
   const prices = { open: candle.open, high: candle.high, low: candle.low, close: candle.close }
-  
+
   for (const [field, price] of Object.entries(prices)) {
     if (typeof price !== 'number' || !isFinite(price) || price <= 0) {
       throw new ValidationError(`${field} must be a positive finite number`, field, price)
@@ -429,7 +441,9 @@ function validateOhlc(candle: Ohlc): void {
     throw new ValidationError('Low must be less than or equal to min(open, close)', 'low', candle.low)
   }
 
-  if (candle.volume !== undefined && (typeof candle.volume !== 'number' || !isFinite(candle.volume) || candle.volume < 0)) {
+  if (
+    candle.volume !== undefined && (typeof candle.volume !== 'number' || !isFinite(candle.volume) || candle.volume < 0)
+  ) {
     throw new ValidationError('Volume must be a non-negative finite number', 'volume', candle.volume)
   }
 

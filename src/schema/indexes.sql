@@ -1,4 +1,5 @@
 -- TimescaleDB Client - Index Creation Script
+-- Dialect: postgresql
 -- This script creates optimized indexes for time-series queries on financial data
 
 -- =============================================================================

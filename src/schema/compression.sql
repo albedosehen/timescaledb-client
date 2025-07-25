@@ -1,4 +1,5 @@
 -- TimescaleDB Client - Compression Policies Script
+-- Dialect: postgresql
 -- This script configures TimescaleDB compression policies for optimal storage and query performance
 
 -- =============================================================================

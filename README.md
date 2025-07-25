@@ -1,19 +1,17 @@
-# timescaledb-client - TimescaleDB Client for Financial Data
+# TimescaleDB Client
 
-A high-performance, type-safe client for TimescaleDB for financial market data analytics and trading applications.
+Performant and type-safe client for TimescaleDB with built-in support for analytics.
 
-[![JSR](https://jsr.io/badges/@albedosehen/timescaledb-client)](https://jsr.io/@albedosehen/timescaledb-client)
-[![CI](https://github.com/albedosehen/timescaledb-client/workflows/CI/badge.svg)](https://github.com/albedosehen/timescaledb-client/actions)
-[![Coverage](https://codecov.io/gh/albedosehen/timescaledb-client/branch/main/graph/badge.svg)](https://codecov.io/gh/albedosehen/timescaledb-client)
+[![CI](https://github.com/albedosehen/timescaledb-client/workflows/CI/badge.svg)](https://github.com/albedosehen/timescaledb-client/actions) [![JSR](https://jsr.io/badges/@albedosehen/timescaledb-client)](https://jsr.io/@albedosehen/timescaledb-client)
 
-## 🚀 Quick Start
+## Basic Usage
 
 ```typescript
 import { ClientFactory } from '@albedosehen/timescaledb-client'
 
 // Create client from connection string
 const client = await ClientFactory.fromConnectionString(
-  'postgresql://user:pass@localhost:5432/trading_db'
+  'postgresql://user:pass@localhost:5432/trading_db',
 )
 
 // Insert market tick data
@@ -21,40 +19,40 @@ await client.insertTick({
   symbol: 'BTCUSD',
   price: 45250.00,
   volume: 1.25,
-  timestamp: new Date().toISOString()
+  timestamp: new Date().toISOString(),
 })
 
 // Query recent price movements
 const recentTicks = await client.getTicks('BTCUSD', {
   from: new Date(Date.now() - 3600000), // Last hour
   to: new Date(),
-  limit: 1000
+  limit: 1000,
 })
 
 // Calculate technical indicators
 const sma20 = await client.calculateSMA('BTCUSD', 20, {
   from: new Date(Date.now() - 86400000 * 30), // Last 30 days
-  to: new Date()
+  to: new Date(),
 })
 ```
 
-## 💡 Why TimescaleDB Client?
+## Advanced Built-In Features
 
-### Built for Financial Markets
+### Market Analytics
 
 - **High-Frequency Data**: Optimized for tick-by-tick market data ingestion
 - **Real-Time Analytics**: Calculate technical indicators and market metrics
 - **Portfolio Management**: Multi-symbol analysis and correlation tracking
 - **Risk Management**: Volatility calculations and drawdown analysis
 
-### Production-Ready Performance
+### Performant
 
 - **Batch Operations**: Process millions of ticks efficiently
 - **Streaming Support**: Handle large datasets without memory issues
 - **Connection Pooling**: Optimized postgres.js integration
 - **TimescaleDB Native**: Leverages hypertables, continuous aggregates, and compression
 
-### Developer Experience
+### DX
 
 - **Type-Safe**: Full TypeScript support with financial data types
 - **Easy Setup**: Multiple initialization patterns
@@ -83,34 +81,42 @@ deno add jsr:@albedosehen/timescaledb-client
 
 ### Market Data Operations
 
-| Feature | Description | Example |
-|---------|-------------|---------|
+| Feature            | Description                         | Example                                                                             |
+| ------------------ | ----------------------------------- | ----------------------------------------------------------------------------------- |
 | **Tick Ingestion** | Store individual price/volume ticks | [`insertTick()`](./src/client.ts#L207), [`insertManyTicks()`](./src/client.ts#L240) |
-| **OHLC Candles** | Store and retrieve candlestick data | [`insertOhlc()`](./src/client.ts#L224), [`getOhlc()`](./src/client.ts#L322) |
-| **Price Queries** | Retrieve historical price data | [`getTicks()`](./src/client.ts#L298), [`getLatestPrice()`](./src/client.ts#L372) |
-| **Multi-Symbol** | Analyze multiple instruments | [`getMultiSymbolLatest()`](./src/client.ts#L388) |
+| **OHLC Candles**   | Store and retrieve candlestick data | [`insertOhlc()`](./src/client.ts#L224), [`getOhlc()`](./src/client.ts#L322)         |
+| **Price Queries**  | Retrieve historical price data      | [`getTicks()`](./src/client.ts#L298), [`getLatestPrice()`](./src/client.ts#L372)    |
+| **Multi-Symbol**   | Analyze multiple instruments        | [`getMultiSymbolLatest()`](./src/client.ts#L388)                                    |
 
 ### Technical Analysis
 
-| Indicator | Description | Method |
-|-----------|-------------|---------|
-| **Moving Averages** | SMA, EMA calculations | [`calculateSMA()`](./src/client.ts#L468), [`calculateEMA()`](./src/client.ts#L486) |
-| **RSI** | Relative Strength Index | [`calculateRSI()`](./src/client.ts#L504) |
-| **Bollinger Bands** | Price volatility bands | [`calculateBollingerBands()`](./src/client.ts#L522) |
-| **VWAP** | Volume Weighted Average Price | [`getVwap()`](./src/client.ts#L443) |
-| **Support/Resistance** | Key price levels | [`findSupportResistanceLevels()`](./src/client.ts#L576) |
+| Indicator              | Description                   | Method                                                                             |
+| ---------------------- | ----------------------------- | ---------------------------------------------------------------------------------- |
+| **Moving Averages**    | SMA, EMA calculations         | [`calculateSMA()`](./src/client.ts#L468), [`calculateEMA()`](./src/client.ts#L486) |
+| **RSI**                | Relative Strength Index       | [`calculateRSI()`](./src/client.ts#L504)                                           |
+| **Bollinger Bands**    | Price volatility bands        | [`calculateBollingerBands()`](./src/client.ts#L522)                                |
+| **VWAP**               | Volume Weighted Average Price | [`getVwap()`](./src/client.ts#L443)                                                |
+| **Support/Resistance** | Key price levels              | [`findSupportResistanceLevels()`](./src/client.ts#L576)                            |
 
 ### Advanced Analytics
 
-| Feature | Description | Method |
-|---------|-------------|---------|
-| **Volatility** | Price volatility calculations | [`getVolatility()`](./src/client.ts#L427) |
-| **Price Delta** | Price change analysis | [`getPriceDelta()`](./src/client.ts#L411) |
-| **Correlation** | Asset correlation analysis | [`calculateCorrelation()`](./src/client.ts#L594) |
-| **Volume Profile** | Volume distribution analysis | [`getVolumeProfile()`](./src/client.ts#L558) |
-| **Top Movers** | Largest price movements | [`getTopMovers()`](./src/client.ts#L540) |
+| Feature            | Description                   | Method                                           |
+| ------------------ | ----------------------------- | ------------------------------------------------ |
+| **Volatility**     | Price volatility calculations | [`getVolatility()`](./src/client.ts#L427)        |
+| **Price Delta**    | Price change analysis         | [`getPriceDelta()`](./src/client.ts#L411)        |
+| **Correlation**    | Asset correlation analysis    | [`calculateCorrelation()`](./src/client.ts#L594) |
+| **Volume Profile** | Volume distribution analysis  | [`getVolumeProfile()`](./src/client.ts#L558)     |
+| **Top Movers**     | Largest price movements       | [`getTopMovers()`](./src/client.ts#L540)         |
 
-## 🎯 Use Cases
+## Client Use Cases
+
+### TimescaleDB
+
+- CRUD operations on time-series data
+- Health checks and monitoring
+- Connection pooling and management
+- Retention policies and compression
+- Aggregate queries and analytics
 
 ### Algorithmic Trading
 
@@ -142,13 +148,13 @@ deno add jsr:@albedosehen/timescaledb-client
 
 ## 📚 Documentation
 
-| Document | Description |
-|----------|-------------|
-| **[Getting Started](./docs/GETTING_STARTED.md)** | Step-by-step setup guide |
-| **[API Reference](./docs/API_REFERENCE.md)** | Complete method documentation |
-| **[Examples](./examples/)** | Practical code examples |
-| **[Deployment Guide](./docs/DEPLOYMENT.md)** | Production deployment |
-| **[Troubleshooting](./docs/TROUBLESHOOTING.md)** | Common issues and solutions |
+| Document                                         | Description                   |
+| ------------------------------------------------ | ----------------------------- |
+| **[Getting Started](./docs/GETTING_STARTED.md)** | Step-by-step setup guide      |
+| **[API Reference](./docs/API_REFERENCE.md)**     | Complete method documentation |
+| **[Examples](./examples/)**                      | Practical code examples       |
+| **[Deployment Guide](./docs/DEPLOYMENT.md)**     | Production deployment         |
+| **[Troubleshooting](./docs/TROUBLESHOOTING.md)** | Common issues and solutions   |
 
 ## 🔧 Configuration
 
@@ -160,14 +166,14 @@ import { ClientFactory } from '@albedosehen/timescaledb-client'
 const client = await ClientFactory.fromConfig({
   host: 'localhost',
   port: 5432,
-  database: 'trading_db',
-  username: 'trader',
+  database: 'my_db',
+  username: 'my_user',
   password: 'secure_password',
-  ssl: true
+  ssl: true,
 }, {
   defaultBatchSize: 5000,
   validateInputs: true,
-  autoCreateTables: false
+  autoCreateTables: false,
 })
 ```
 
@@ -177,8 +183,8 @@ const client = await ClientFactory.fromConfig({
 # Connection
 PGHOST=localhost
 PGPORT=5432
-PGDATABASE=trading_db
-PGUSER=trader
+PGDATABASE=my_db
+PGUSER=my_user
 PGPASSWORD=secure_password
 
 # TimescaleDB Client
@@ -193,8 +199,8 @@ const client = await ClientFactory.production(
   {
     maxRetries: 5,
     queryTimeout: 60000,
-    collectStats: true
-  }
+    collectStats: true,
+  },
 )
 ```
 
@@ -207,13 +213,13 @@ const client = await ClientFactory.production(
 await client.insertManyTicks([
   { symbol: 'BTCUSD', price: 45250.00, volume: 1.25, timestamp: '2024-01-15T10:00:00Z' },
   { symbol: 'ETHUSD', price: 2890.50, volume: 5.50, timestamp: '2024-01-15T10:00:01Z' },
-  { symbol: 'NVDA', price: 185.25, volume: 100, timestamp: '2024-01-15T10:00:02Z' }
+  { symbol: 'NVDA', price: 185.25, volume: 100, timestamp: '2024-01-15T10:00:02Z' },
 ])
 
 // Generate OHLC candles from tick data
 const hourlyCandles = await client.getOhlcFromTicks('BTCUSD', 60, {
   from: new Date('2024-01-15T09:00:00Z'),
-  to: new Date('2024-01-15T17:00:00Z')
+  to: new Date('2024-01-15T17:00:00Z'),
 })
 ```
 
@@ -255,8 +261,8 @@ const client = await ClientFactory.fromConfig({
     rejectUnauthorized: true,
     ca: await Deno.readTextFile('./certs/ca.pem'),
     cert: await Deno.readTextFile('./certs/client.pem'),
-    key: await Deno.readTextFile('./certs/client-key.pem')
-  }
+    key: await Deno.readTextFile('./certs/client-key.pem'),
+  },
 })
 ```
 
@@ -294,5 +300,3 @@ This project is licensed under the MIT License - see the [LICENSE](./LICENSE) fi
 - **Documentation**: [Getting Started Guide](./docs/GETTING_STARTED.md)
 
 ---
-
-**Built for traders, by traders** 📈

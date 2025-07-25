@@ -27,7 +27,7 @@ This is the first stable release of the TimescaleDB Client, a production-ready T
 - **Single Insert Operations**
   - `insertTick()` - Insert individual price ticks
   - `insertOhlc()` - Insert OHLC candles with validation
-  
+
 - **Batch Operations**
   - `insertManyTicks()` - Efficient bulk price tick insertion
   - `insertManyOhlc()` - Efficient bulk OHLC insertion
@@ -308,7 +308,7 @@ import { ClientFactory } from 'timescaledb-client'
 
 // Create client from connection string
 const client = await ClientFactory.fromConnectionString(
-  'postgresql://user:pass@localhost:5432/timescale_db'
+  'postgresql://user:pass@localhost:5432/timescale_db',
 )
 
 // Initialize client
@@ -318,19 +318,19 @@ await client.initialize()
 await client.insertTick({
   symbol: 'BTCUSD',
   price: 45000,
-  timestamp: new Date().toISOString()
+  timestamp: new Date().toISOString(),
 })
 
 // Query historical data
 const ticks = await client.getTicks('BTCUSD', {
   from: new Date('2024-01-01'),
-  to: new Date('2024-01-31')
+  to: new Date('2024-01-31'),
 })
 
 // Calculate technical indicators
 const sma = await client.calculateSMA('BTCUSD', 20, {
   from: new Date('2024-01-01'),
-  to: new Date('2024-01-31')
+  to: new Date('2024-01-31'),
 })
 
 // Clean up
@@ -387,4 +387,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-*For the most up-to-date information, please check the [GitHub repository](https://github.com/albedosehen/timescaledb-client) and [documentation](docs/).*
+_For the most up-to-date information, please check the [GitHub repository](https://github.com/albedosehen/timescaledb-client) and [documentation](docs/)._

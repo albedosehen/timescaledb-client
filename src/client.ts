@@ -1,6 +1,6 @@
 /**
  * TimescaleClient - Main client class for TimescaleDB operations
- * 
+ *
  * Provides a comprehensive, production-ready interface for TimescaleDB operations
  * including data insertion, querying, aggregations, and analytics.
  */
@@ -8,67 +8,79 @@
 import type { SqlInstance } from './types/internal.ts'
 import type { DatabaseLayer } from './database/mod.ts'
 import type {
-  PriceTick,
-  Ohlc,
-  TimeRange,
-  TimeInterval,
   BatchResult,
-  MultiSymbolLatest,
-  VolumeProfile,
-  TopMover,
   HealthCheckResult,
-  SchemaInfo
+  MultiSymbolLatest,
+  Ohlc,
+  PriceTick,
+  SchemaInfo,
+  TimeInterval,
+  TimeRange,
+  TopMover,
+  VolumeProfile,
 } from './types/interfaces.ts'
 import type { ClientOptions, Logger } from './types/config.ts'
-import { 
-  ValidationError, 
-  QueryError, 
-  ConnectionError,
-  BatchError 
-} from './types/errors.ts'
+import { BatchError, ConnectionError, QueryError, ValidationError } from './types/errors.ts'
 
 // Import query operations
+import { insertManyOhlc, insertManyTicks, insertOhlc, type InsertOptions, insertTick } from './queries/insert.ts'
 import {
-  insertTick,
-  insertOhlc,
-  insertManyTicks,
-  insertManyOhlc,
-  type InsertOptions
-} from './queries/insert.ts'
-import {
-  getTicks,
-  getOhlc,
-  getOhlcFromTicks,
   getLatestPrice,
   getMultiSymbolLatest,
-  getTicksStream,
+  getOhlc,
+  getOhlcFromTicks,
   getOhlcStream,
-  type SelectOptions
+  getTicks,
+  getTicksStream,
+  type SelectOptions,
 } from './queries/select.ts'
 import {
-  getVwap,
+  type AggregationOptions,
   getPriceDelta,
   getVolatility,
-  type AggregationOptions,
+  getVwap,
+  type PriceDeltaResult,
   type VwapResult,
-  type PriceDeltaResult
 } from './queries/aggregate.ts'
 import {
-  calculateSMA,
+  type AnalyticsOptions,
+  type BollingerBandsResult,
+  calculateBollingerBands,
+  calculateCorrelation,
   calculateEMA,
   calculateRSI,
-  calculateBollingerBands,
+  calculateSMA,
+  type CorrelationResult,
+  findSupportResistanceLevels,
   getTopMovers,
   getVolumeProfile,
-  findSupportResistanceLevels,
-  calculateCorrelation,
-  type AnalyticsOptions,
-  type TechnicalIndicatorResult,
   type RSIResult,
-  type BollingerBandsResult,
   type SupportResistanceLevel,
-  type CorrelationResult
+  type TechnicalIndicatorResult,
 } from './queries/analytics.ts'
+
+/**
+ * Database query result interfaces for type safety
+ */
+interface TableInfoResult {
+  table_name: string
+}
+
+interface HypertableInfoResult {
+  table_name: string
+  schema_name: string
+  time_column: string
+  chunk_time_interval: string
+  num_dimensions: number
+  compression_enabled: boolean
+  created_at: string
+}
+
+interface IndexInfoResult {
+  index_name: string
+  table_name: string
+  definition: string
+}
 
 /**
  * TimescaleClient configuration extending ClientOptions
@@ -76,13 +88,13 @@ import {
 export interface TimescaleClientConfig extends ClientOptions {
   /** Whether to automatically ensure schema on initialization */
   readonly autoEnsureSchema?: boolean
-  
+
   /** Custom interval duration for OHLC data (default: '1m') */
   readonly defaultInterval?: TimeInterval
-  
+
   /** Whether to enable query statistics collection */
   readonly enableQueryStats?: boolean
-  
+
   /** Custom error handlers */
   readonly errorHandlers?: {
     readonly onValidationError?: (error: ValidationError) => void
@@ -110,7 +122,7 @@ const DEFAULT_CLIENT_CONFIG: Required<Omit<TimescaleClientConfig, 'logger' | 'er
   streamingThreshold: 1000,
   autoEnsureSchema: false,
   defaultInterval: '1m',
-  enableQueryStats: false
+  enableQueryStats: false,
 }
 
 /**
@@ -122,19 +134,19 @@ export class TimescaleClient {
   private readonly logger: Logger | undefined
   private readonly errorHandlers?: TimescaleClientConfig['errorHandlers']
   private readonly dbLayer?: DatabaseLayer
-  
+
   private _isInitialized = false
   private _isClosed = false
 
   /**
    * Create a new TimescaleClient instance
-   * 
+   *
    * @param sql - postgres.js SqlInstance or DatabaseLayer
    * @param config - Client configuration options
    */
   constructor(
     sql: SqlInstance | DatabaseLayer,
-    config: TimescaleClientConfig = {}
+    config: TimescaleClientConfig = {},
   ) {
     // Handle both SqlInstance and DatabaseLayer
     if ('pool' in sql) {
@@ -144,7 +156,7 @@ export class TimescaleClient {
     } else {
       this.sql = sql
     }
-    
+
     this.config = { ...DEFAULT_CLIENT_CONFIG, ...config }
     this.logger = config.logger ?? undefined
     this.errorHandlers = config.errorHandlers
@@ -173,7 +185,7 @@ export class TimescaleClient {
     } catch (error) {
       const err = new ConnectionError(
         'Failed to initialize TimescaleClient',
-        error instanceof Error ? error : new Error(String(error))
+        error instanceof Error ? error : new Error(String(error)),
       )
       this.handleError(err)
       throw err
@@ -201,7 +213,7 @@ export class TimescaleClient {
    */
   async insertTick(tick: PriceTick, options?: InsertOptions): Promise<void> {
     this.validateNotClosed()
-    
+
     try {
       const sql = await this.getSqlInstance()
       const insertOptions = this.mergeInsertOptions(options)
@@ -218,7 +230,7 @@ export class TimescaleClient {
    */
   async insertOhlc(candle: Ohlc, options?: InsertOptions): Promise<void> {
     this.validateNotClosed()
-    
+
     try {
       const insertOptions = this.mergeInsertOptions(options)
       await insertOhlc(this.sql, candle, insertOptions)
@@ -234,7 +246,7 @@ export class TimescaleClient {
    */
   async insertManyTicks(ticks: PriceTick[], options?: InsertOptions): Promise<BatchResult> {
     this.validateNotClosed()
-    
+
     if (ticks.length === 0) {
       return { processed: 0, failed: 0, durationMs: 0, errors: [] }
     }
@@ -242,14 +254,14 @@ export class TimescaleClient {
     try {
       const insertOptions = this.mergeInsertOptions(options)
       const result = await insertManyTicks(this.sql, ticks, insertOptions)
-      
+
       this.logger?.info('Batch inserted price ticks', {
         total: ticks.length,
         processed: result.processed,
         failed: result.failed,
-        durationMs: result.durationMs
+        durationMs: result.durationMs,
       })
-      
+
       return result
     } catch (error) {
       this.handleError(error)
@@ -262,7 +274,7 @@ export class TimescaleClient {
    */
   async insertManyOhlc(candles: Ohlc[], options?: InsertOptions): Promise<BatchResult> {
     this.validateNotClosed()
-    
+
     if (candles.length === 0) {
       return { processed: 0, failed: 0, durationMs: 0, errors: [] }
     }
@@ -270,14 +282,14 @@ export class TimescaleClient {
     try {
       const insertOptions = this.mergeInsertOptions(options)
       const result = await insertManyOhlc(this.sql, candles, insertOptions)
-      
+
       this.logger?.info('Batch inserted OHLC candles', {
         total: candles.length,
         processed: result.processed,
         failed: result.failed,
-        durationMs: result.durationMs
+        durationMs: result.durationMs,
       })
-      
+
       return result
     } catch (error) {
       this.handleError(error)
@@ -292,18 +304,18 @@ export class TimescaleClient {
    */
   async getTicks(symbol: string, range: TimeRange, options?: SelectOptions): Promise<PriceTick[]> {
     this.validateNotClosed()
-    
+
     try {
       const selectOptions = this.mergeSelectOptions(options)
       const ticks = await getTicks(this.sql, symbol, range, selectOptions)
-      
+
       this.logger?.debug('Retrieved price ticks', {
         symbol,
         count: ticks.length,
         from: range.from,
-        to: range.to
+        to: range.to,
       })
-      
+
       return ticks
     } catch (error) {
       this.handleError(error)
@@ -316,19 +328,19 @@ export class TimescaleClient {
    */
   async getOhlc(symbol: string, interval: TimeInterval, range: TimeRange, options?: SelectOptions): Promise<Ohlc[]> {
     this.validateNotClosed()
-    
+
     try {
       const selectOptions = this.mergeSelectOptions(options)
       const candles = await getOhlc(this.sql, symbol, interval, range, selectOptions)
-      
+
       this.logger?.debug('Retrieved OHLC data', {
         symbol,
         interval,
         count: candles.length,
         from: range.from,
-        to: range.to
+        to: range.to,
       })
-      
+
       return candles
     } catch (error) {
       this.handleError(error)
@@ -339,21 +351,26 @@ export class TimescaleClient {
   /**
    * Generate OHLC data from tick data using TimescaleDB aggregation
    */
-  async getOhlcFromTicks(symbol: string, intervalMinutes: number, range: TimeRange, options?: SelectOptions): Promise<Ohlc[]> {
+  async getOhlcFromTicks(
+    symbol: string,
+    intervalMinutes: number,
+    range: TimeRange,
+    options?: SelectOptions,
+  ): Promise<Ohlc[]> {
     this.validateNotClosed()
-    
+
     try {
       const selectOptions = this.mergeSelectOptions(options)
       const candles = await getOhlcFromTicks(this.sql, symbol, intervalMinutes, range, selectOptions)
-      
+
       this.logger?.debug('Generated OHLC from ticks', {
         symbol,
         intervalMinutes,
         count: candles.length,
         from: range.from,
-        to: range.to
+        to: range.to,
       })
-      
+
       return candles
     } catch (error) {
       this.handleError(error)
@@ -366,7 +383,7 @@ export class TimescaleClient {
    */
   async getLatestPrice(symbol: string): Promise<number | null> {
     this.validateNotClosed()
-    
+
     try {
       const price = await getLatestPrice(this.sql, symbol)
       this.logger?.debug('Retrieved latest price', { symbol, price })
@@ -382,15 +399,15 @@ export class TimescaleClient {
    */
   async getMultiSymbolLatest(symbols: string[]): Promise<MultiSymbolLatest> {
     this.validateNotClosed()
-    
+
     try {
       const result = await getMultiSymbolLatest(this.sql, symbols)
-      
+
       this.logger?.debug('Retrieved multi-symbol latest prices', {
         requested: result.requested,
-        found: result.found
+        found: result.found,
       })
-      
+
       return result
     } catch (error) {
       this.handleError(error)
@@ -405,7 +422,7 @@ export class TimescaleClient {
    */
   async getPriceDelta(symbol: string, from: Date, to: Date): Promise<PriceDeltaResult> {
     this.validateNotClosed()
-    
+
     try {
       const delta = await getPriceDelta(this.sql, symbol, from, to)
       this.logger?.debug('Calculated price delta', { symbol, delta: delta.delta, percentChange: delta.percentChange })
@@ -421,7 +438,7 @@ export class TimescaleClient {
    */
   async getVolatility(symbol: string, hours: number): Promise<number> {
     this.validateNotClosed()
-    
+
     try {
       const volatility = await getVolatility(this.sql, symbol, hours)
       this.logger?.debug('Calculated volatility', { symbol, hours, volatility })
@@ -435,19 +452,24 @@ export class TimescaleClient {
   /**
    * Get VWAP (Volume Weighted Average Price) for time buckets
    */
-  async getVwap(symbol: string, bucketInterval: string, range: TimeRange, options?: AggregationOptions): Promise<VwapResult[]> {
+  async getVwap(
+    symbol: string,
+    bucketInterval: string,
+    range: TimeRange,
+    options?: AggregationOptions,
+  ): Promise<VwapResult[]> {
     this.validateNotClosed()
-    
+
     try {
       const aggregationOptions = this.mergeAggregationOptions(options)
       const vwapData = await getVwap(this.sql, symbol, bucketInterval, range, aggregationOptions)
-      
+
       this.logger?.debug('Retrieved VWAP data', {
         symbol,
         bucketInterval,
-        count: vwapData.length
+        count: vwapData.length,
       })
-      
+
       return vwapData
     } catch (error) {
       this.handleError(error)
@@ -460,13 +482,18 @@ export class TimescaleClient {
   /**
    * Calculate Simple Moving Average
    */
-  async calculateSMA(symbol: string, period: number, range: TimeRange, options?: AnalyticsOptions): Promise<TechnicalIndicatorResult[]> {
+  async calculateSMA(
+    symbol: string,
+    period: number,
+    range: TimeRange,
+    options?: AnalyticsOptions,
+  ): Promise<TechnicalIndicatorResult[]> {
     this.validateNotClosed()
-    
+
     try {
       const analyticsOptions = this.mergeAnalyticsOptions(options)
       const sma = await calculateSMA(this.sql, symbol, period, range, analyticsOptions)
-      
+
       this.logger?.debug('Calculated SMA', { symbol, period, count: sma.length })
       return sma
     } catch (error) {
@@ -478,13 +505,18 @@ export class TimescaleClient {
   /**
    * Calculate Exponential Moving Average
    */
-  async calculateEMA(symbol: string, period: number, range: TimeRange, options?: AnalyticsOptions): Promise<TechnicalIndicatorResult[]> {
+  async calculateEMA(
+    symbol: string,
+    period: number,
+    range: TimeRange,
+    options?: AnalyticsOptions,
+  ): Promise<TechnicalIndicatorResult[]> {
     this.validateNotClosed()
-    
+
     try {
       const analyticsOptions = this.mergeAnalyticsOptions(options)
       const ema = await calculateEMA(this.sql, symbol, period, range, analyticsOptions)
-      
+
       this.logger?.debug('Calculated EMA', { symbol, period, count: ema.length })
       return ema
     } catch (error) {
@@ -496,13 +528,18 @@ export class TimescaleClient {
   /**
    * Calculate RSI (Relative Strength Index)
    */
-  async calculateRSI(symbol: string, period: number, range: TimeRange, options?: AnalyticsOptions): Promise<RSIResult[]> {
+  async calculateRSI(
+    symbol: string,
+    period: number,
+    range: TimeRange,
+    options?: AnalyticsOptions,
+  ): Promise<RSIResult[]> {
     this.validateNotClosed()
-    
+
     try {
       const analyticsOptions = this.mergeAnalyticsOptions(options)
       const rsi = await calculateRSI(this.sql, symbol, range, period, analyticsOptions)
-      
+
       this.logger?.debug('Calculated RSI', { symbol, period, count: rsi.length })
       return rsi
     } catch (error) {
@@ -514,13 +551,19 @@ export class TimescaleClient {
   /**
    * Calculate Bollinger Bands
    */
-  async calculateBollingerBands(symbol: string, period: number, stdDevMultiplier: number, range: TimeRange, options?: AnalyticsOptions): Promise<BollingerBandsResult[]> {
+  async calculateBollingerBands(
+    symbol: string,
+    period: number,
+    stdDevMultiplier: number,
+    range: TimeRange,
+    options?: AnalyticsOptions,
+  ): Promise<BollingerBandsResult[]> {
     this.validateNotClosed()
-    
+
     try {
       const analyticsOptions = this.mergeAnalyticsOptions(options)
       const bands = await calculateBollingerBands(this.sql, symbol, range, period, stdDevMultiplier, analyticsOptions)
-      
+
       this.logger?.debug('Calculated Bollinger Bands', { symbol, period, stdDevMultiplier, count: bands.length })
       return bands
     } catch (error) {
@@ -534,11 +577,11 @@ export class TimescaleClient {
    */
   async getTopMovers(options?: AnalyticsOptions, limit: number = 10, hours: number = 24): Promise<TopMover[]> {
     this.validateNotClosed()
-    
+
     try {
       const analyticsOptions = this.mergeAnalyticsOptions(options)
       const movers = await getTopMovers(this.sql, analyticsOptions, limit, hours)
-      
+
       this.logger?.debug('Retrieved top movers', { limit, hours, count: movers.length })
       return movers
     } catch (error) {
@@ -550,13 +593,18 @@ export class TimescaleClient {
   /**
    * Get volume profile analysis
    */
-  async getVolumeProfile(symbol: string, range: TimeRange, options?: AnalyticsOptions, buckets: number = 20): Promise<VolumeProfile[]> {
+  async getVolumeProfile(
+    symbol: string,
+    range: TimeRange,
+    options?: AnalyticsOptions,
+    buckets: number = 20,
+  ): Promise<VolumeProfile[]> {
     this.validateNotClosed()
-    
+
     try {
       const analyticsOptions = this.mergeAnalyticsOptions(options)
       const profile = await getVolumeProfile(this.sql, symbol, range, buckets, analyticsOptions)
-      
+
       this.logger?.debug('Retrieved volume profile', { symbol, buckets, count: profile.length })
       return profile
     } catch (error) {
@@ -568,13 +616,19 @@ export class TimescaleClient {
   /**
    * Find support and resistance levels
    */
-  async findSupportResistanceLevels(symbol: string, range: TimeRange, options?: AnalyticsOptions, tolerance: number = 0.005, minTouches: number = 3): Promise<SupportResistanceLevel[]> {
+  async findSupportResistanceLevels(
+    symbol: string,
+    range: TimeRange,
+    options?: AnalyticsOptions,
+    tolerance: number = 0.005,
+    minTouches: number = 3,
+  ): Promise<SupportResistanceLevel[]> {
     this.validateNotClosed()
-    
+
     try {
       const analyticsOptions = this.mergeAnalyticsOptions(options)
       const levels = await findSupportResistanceLevels(this.sql, symbol, range, tolerance, minTouches, analyticsOptions)
-      
+
       this.logger?.debug('Found support/resistance levels', { symbol, tolerance, minTouches, count: levels.length })
       return levels
     } catch (error) {
@@ -586,13 +640,18 @@ export class TimescaleClient {
   /**
    * Calculate correlation between two symbols
    */
-  async calculateCorrelation(symbol1: string, symbol2: string, range: TimeRange, options?: AnalyticsOptions): Promise<CorrelationResult> {
+  async calculateCorrelation(
+    symbol1: string,
+    symbol2: string,
+    range: TimeRange,
+    options?: AnalyticsOptions,
+  ): Promise<CorrelationResult> {
     this.validateNotClosed()
-    
+
     try {
       const analyticsOptions = this.mergeAnalyticsOptions(options)
       const correlation = await calculateCorrelation(this.sql, symbol1, symbol2, range, analyticsOptions)
-      
+
       this.logger?.debug('Calculated correlation', { symbol1, symbol2, correlation: correlation.correlation })
       return correlation
     } catch (error) {
@@ -608,11 +667,11 @@ export class TimescaleClient {
    */
   getTicksStream(symbol: string, range: TimeRange, options?: { batchSize?: number }): AsyncIterable<PriceTick[]> {
     this.validateNotClosed()
-    
+
     try {
       const streamingOptions = { batchSize: options?.batchSize || this.config.defaultBatchSize }
       const stream = getTicksStream(this.sql, symbol, range, streamingOptions)
-      
+
       this.logger?.debug('Started ticks stream', { symbol, batchSize: streamingOptions.batchSize })
       return stream
     } catch (error) {
@@ -624,13 +683,18 @@ export class TimescaleClient {
   /**
    * Stream OHLC data for large datasets
    */
-  getOhlcStream(symbol: string, interval: TimeInterval, range: TimeRange, options?: { batchSize?: number }): AsyncIterable<Ohlc[]> {
+  getOhlcStream(
+    symbol: string,
+    interval: TimeInterval,
+    range: TimeRange,
+    options?: { batchSize?: number },
+  ): AsyncIterable<Ohlc[]> {
     this.validateNotClosed()
-    
+
     try {
       const streamingOptions = { batchSize: options?.batchSize || this.config.defaultBatchSize }
       const stream = getOhlcStream(this.sql, symbol, interval, range, streamingOptions)
-      
+
       this.logger?.debug('Started OHLC stream', { symbol, interval, batchSize: streamingOptions.batchSize })
       return stream
     } catch (error) {
@@ -648,11 +712,11 @@ export class TimescaleClient {
     try {
       const startTime = performance.now()
       const sql = await this.getSqlInstance()
-      
+
       // Basic connectivity test
       const result = await sql`SELECT 1 as test, NOW() as timestamp`
       const responseTime = Math.round(performance.now() - startTime)
-      
+
       // Check TimescaleDB extension
       const versionResult = await sql`
         SELECT
@@ -661,14 +725,14 @@ export class TimescaleClient {
         FROM pg_extension
         WHERE extname = 'timescaledb'
       `
-      
+
       const isHealthy = result.length > 0 && versionResult.length > 0
       const version = versionResult[0]?.version as string
       const database = versionResult[0]?.database as string
-      
+
       // Get database layer health if available
       const dbLayerHealth = this.dbLayer?.getHealthStatus()
-      
+
       return {
         isHealthy: isHealthy && (!dbLayerHealth || dbLayerHealth.isHealthy),
         responseTimeMs: responseTime,
@@ -677,24 +741,24 @@ export class TimescaleClient {
         connection: {
           host: 'unknown', // Would need connection info from postgres.js
           port: 5432,
-          ssl: false
+          ssl: false,
         },
         errors: isHealthy ? undefined : ['TimescaleDB extension not available'],
-        timestamp: new Date()
+        timestamp: new Date(),
       }
     } catch (error) {
       this.handleError(error)
-      
+
       return {
         isHealthy: false,
         responseTimeMs: 0,
         connection: {
           host: 'unknown',
           port: 5432,
-          ssl: false
+          ssl: false,
         },
         errors: [error instanceof Error ? error.message : String(error)],
-        timestamp: new Date()
+        timestamp: new Date(),
       }
     }
   }
@@ -704,11 +768,11 @@ export class TimescaleClient {
    */
   async ensureSchema(): Promise<void> {
     this.validateNotClosed()
-    
+
     try {
       // This would typically read and execute SQL files from src/schema/
       // For now, we'll implement basic table creation
-      
+
       // Check if tables exist
       const tables = await this.sql`
         SELECT table_name 
@@ -716,9 +780,9 @@ export class TimescaleClient {
         WHERE table_schema = 'public' 
           AND table_name IN ('price_ticks', 'ohlc_data')
       `
-      
-      const existingTables = tables.map(t => t.table_name)
-      
+
+      const existingTables = (tables as unknown as TableInfoResult[]).map((t) => t.table_name)
+
       if (!existingTables.includes('price_ticks')) {
         await this.sql`
           CREATE TABLE IF NOT EXISTS price_ticks (
@@ -734,13 +798,13 @@ export class TimescaleClient {
             PRIMARY KEY (symbol, time)
           )
         `
-        
+
         // Convert to hypertable
         await this.sql`SELECT create_hypertable('price_ticks', 'time', if_not_exists => true)`
-        
+
         this.logger?.info('Created price_ticks hypertable')
       }
-      
+
       if (!existingTables.includes('ohlc_data')) {
         await this.sql`
           CREATE TABLE IF NOT EXISTS ohlc_data (
@@ -759,18 +823,18 @@ export class TimescaleClient {
             PRIMARY KEY (symbol, interval_duration, time)
           )
         `
-        
+
         // Convert to hypertable
         await this.sql`SELECT create_hypertable('ohlc_data', 'time', if_not_exists => true)`
-        
+
         this.logger?.info('Created ohlc_data hypertable')
       }
-      
+
       // Create indexes if autoCreateIndexes is enabled
       if (this.config.autoCreateIndexes) {
         await this.createIndexes()
       }
-      
+
       this.logger?.info('Schema ensured successfully')
     } catch (error) {
       this.handleError(error)
@@ -783,12 +847,12 @@ export class TimescaleClient {
    */
   async getSchemaInfo(): Promise<SchemaInfo> {
     this.validateNotClosed()
-    
+
     try {
       // Get TimescaleDB version
       const versionResult = await this.sql`SELECT timescaledb_version()`
       const version = versionResult[0]?.timescaledb_version as string
-      
+
       // Get hypertables info
       const hypertablesResult = await this.sql`
         SELECT 
@@ -802,8 +866,8 @@ export class TimescaleClient {
         FROM timescaledb_information.hypertables
         WHERE hypertable_schema = 'public'
       `
-      
-      const hypertables = hypertablesResult.map(h => ({
+
+      const hypertables = (hypertablesResult as unknown as HypertableInfoResult[]).map((h) => ({
         tableName: String(h.table_name),
         schemaName: String(h.schema_name),
         timeColumn: String(h.time_column),
@@ -812,9 +876,9 @@ export class TimescaleClient {
         numChunks: 0, // Would need additional query
         compressionEnabled: Boolean(h.compression_enabled),
         tableSizeBytes: 0, // Would need additional query
-        createdAt: new Date(String(h.created_at))
+        createdAt: new Date(String(h.created_at)),
       }))
-      
+
       // Get indexes info
       const indexesResult = await this.sql`
         SELECT 
@@ -825,24 +889,24 @@ export class TimescaleClient {
         WHERE schemaname = 'public'
           AND tablename IN ('price_ticks', 'ohlc_data')
       `
-      
-      const indexes = indexesResult.map(idx => ({
+
+      const indexes = (indexesResult as unknown as IndexInfoResult[]).map((idx) => ({
         indexName: String(idx.index_name),
         tableName: String(idx.table_name),
         columns: [], // Would need to parse from definition
         isUnique: String(idx.definition).includes('UNIQUE'),
         isPartial: String(idx.definition).includes('WHERE'),
         sizeBytes: 0, // Would need additional query
-        definition: String(idx.definition)
+        definition: String(idx.definition),
       }))
-      
+
       return {
         version,
         hypertables,
         indexes,
-        compressionEnabled: hypertables.some(h => h.compressionEnabled),
+        compressionEnabled: hypertables.some((h) => h.compressionEnabled),
         retentionPolicies: [], // Would need additional query
-        validatedAt: new Date()
+        validatedAt: new Date(),
       }
     } catch (error) {
       this.handleError(error)
@@ -857,7 +921,7 @@ export class TimescaleClient {
     if (this._isClosed) {
       return
     }
-    
+
     try {
       // Stop database layer if available
       if (this.dbLayer) {
@@ -866,7 +930,7 @@ export class TimescaleClient {
         // Close postgres.js connection
         await this.sql.end()
       }
-      
+
       this._isClosed = true
       this.logger?.info('TimescaleClient closed successfully')
     } catch (error) {
@@ -914,21 +978,23 @@ export class TimescaleClient {
         CREATE INDEX IF NOT EXISTS ix_price_ticks_symbol_time 
         ON price_ticks (symbol, time DESC)
       `
-      
+
       await this.sql`
         CREATE INDEX IF NOT EXISTS ix_price_ticks_time 
         ON price_ticks (time DESC)
       `
-      
+
       // Primary indexes for ohlc_data
       await this.sql`
         CREATE INDEX IF NOT EXISTS ix_ohlc_data_symbol_interval_time 
         ON ohlc_data (symbol, interval_duration, time DESC)
       `
-      
+
       this.logger?.debug('Created database indexes')
     } catch (error) {
-      this.logger?.warn('Failed to create some indexes', { error: error instanceof Error ? error.message : String(error) })
+      this.logger?.warn('Failed to create some indexes', {
+        error: error instanceof Error ? error.message : String(error),
+      })
       // Don't throw - indexes are optional optimization
     }
   }
@@ -945,7 +1011,7 @@ export class TimescaleClient {
       useTransaction: true,
       timeoutMs: this.config.queryTimeout,
       validate: this.config.validateInputs,
-      ...options
+      ...options,
     }
   }
 
@@ -964,7 +1030,7 @@ export class TimescaleClient {
       includeMetadata: false,
       customOrderBy: '',
       useStreaming: this.config.useStreaming,
-      ...options
+      ...options,
     }
   }
 
@@ -983,7 +1049,7 @@ export class TimescaleClient {
       fillGaps: false,
       fillValue: null,
       includeMetadata: false,
-      ...options
+      ...options,
     }
   }
 
@@ -1001,7 +1067,7 @@ export class TimescaleClient {
       includeStats: this.config.collectStats,
       minVolume: 0,
       smoothingFactor: 0.1,
-      ...options
+      ...options,
     }
   }
 
@@ -1019,11 +1085,11 @@ export class TimescaleClient {
     } else if (error instanceof BatchError && this.errorHandlers?.onBatchError) {
       this.errorHandlers.onBatchError(error)
     }
-    
+
     // Log all errors
     this.logger?.error(
       'TimescaleClient operation failed',
-      error instanceof Error ? error : new Error(String(error))
+      error instanceof Error ? error : new Error(String(error)),
     )
   }
 }

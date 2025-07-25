@@ -1,25 +1,22 @@
 /**
  * Select operations for TimescaleDB client
- * 
+ *
  * Provides optimized SQL queries for retrieving price ticks and OHLC data
  * with time-range filtering, pagination, and streaming support.
  */
 
 import type { SqlInstance } from '../types/internal.ts'
-import type { 
-  PriceTick, 
-  Ohlc, 
-  TimeRange, 
-  TimeInterval,
+import type {
   LatestPrice,
   MultiSymbolLatest,
+  Ohlc,
+  PriceTick,
   QueryOptions,
-  StreamingOptions
+  StreamingOptions,
+  TimeInterval,
+  TimeRange,
 } from '../types/interfaces.ts'
-import {
-  ValidationError,
-  QueryError
-} from '../types/errors.ts'
+import { QueryError, ValidationError } from '../types/errors.ts'
 
 /**
  * Select configuration options
@@ -44,7 +41,7 @@ const DEFAULT_SELECT_OPTIONS: Required<SelectOptions> = {
   includeStats: false,
   includeMetadata: false,
   customOrderBy: '',
-  useStreaming: false
+  useStreaming: false,
 }
 
 /**
@@ -54,38 +51,19 @@ export async function getTicks(
   sql: SqlInstance,
   symbol: string,
   range: TimeRange,
-  options: SelectOptions = {}
+  options: SelectOptions = {},
 ): Promise<PriceTick[]> {
   const opts = { ...DEFAULT_SELECT_OPTIONS, ...options }
-  
+
   validateSymbol(symbol)
   validateTimeRange(range)
-  
+
   if (opts.limit > 10000) {
     throw new ValidationError('Limit cannot exceed 10,000 records', 'limit', opts.limit)
   }
 
   try {
-    let query: string
-    if (opts.includeMetadata) {
-      query = `
-        SELECT time, symbol, price, volume, exchange, data_source, bid_price, ask_price, created_at
-        FROM price_ticks
-        WHERE symbol = $1 AND time >= $2 AND time < $3
-        ORDER BY time ${opts.orderBy.direction.toUpperCase()}
-        LIMIT $4 OFFSET $5
-      `
-    } else {
-      query = `
-        SELECT time, symbol, price, volume
-        FROM price_ticks
-        WHERE symbol = $1 AND time >= $2 AND time < $3
-        ORDER BY time ${opts.orderBy.direction.toUpperCase()}
-        LIMIT $4 OFFSET $5
-      `
-    }
-
-    const results = await sql.unsafe(query) as Array<{
+    let results: Array<{
       time: string
       symbol: string
       price: number
@@ -97,18 +75,36 @@ export async function getTicks(
       created_at?: string | null
     }>
 
+    if (opts.includeMetadata) {
+      results = await sql`
+        SELECT time, symbol, price, volume, exchange, data_source, bid_price, ask_price, created_at
+        FROM price_ticks
+        WHERE symbol = ${symbol} AND time >= ${range.from.toISOString()} AND time < ${range.to.toISOString()}
+        ORDER BY time ${opts.orderBy.direction.toUpperCase() === 'DESC' ? sql`DESC` : sql`ASC`}
+        LIMIT ${opts.limit} OFFSET ${opts.offset}
+      `
+    } else {
+      results = await sql`
+        SELECT time, symbol, price, volume
+        FROM price_ticks
+        WHERE symbol = ${symbol} AND time >= ${range.from.toISOString()} AND time < ${range.to.toISOString()}
+        ORDER BY time ${opts.orderBy.direction.toUpperCase() === 'DESC' ? sql`DESC` : sql`ASC`}
+        LIMIT ${opts.limit} OFFSET ${opts.offset}
+      `
+    }
+
     return results.map((row) => ({
       symbol: row.symbol,
       price: row.price,
       volume: row.volume ?? undefined,
-      timestamp: row.time
+      timestamp: row.time,
     }))
   } catch (error) {
     throw new QueryError(
       'Failed to retrieve price ticks',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT FROM price_ticks',
-      [symbol, range.from, range.to]
+      [symbol, range.from, range.to],
     )
   }
 }
@@ -121,14 +117,14 @@ export async function getOhlc(
   symbol: string,
   interval: TimeInterval,
   range: TimeRange,
-  options: SelectOptions = {}
+  options: SelectOptions = {},
 ): Promise<Ohlc[]> {
   const opts = { ...DEFAULT_SELECT_OPTIONS, ...options }
-  
+
   validateSymbol(symbol)
   validateTimeRange(range)
   validateTimeInterval(interval)
-  
+
   if (opts.limit > 10000) {
     throw new ValidationError('Limit cannot exceed 10,000 records', 'limit', opts.limit)
   }
@@ -175,14 +171,14 @@ export async function getOhlc(
       high: row.high,
       low: row.low,
       close: row.close,
-      volume: row.volume ?? undefined
+      volume: row.volume ?? undefined,
     }))
   } catch (error) {
     throw new QueryError(
       'Failed to retrieve OHLC data',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT FROM ohlc_data',
-      [symbol, interval, range.from, range.to]
+      [symbol, interval, range.from, range.to],
     )
   }
 }
@@ -195,24 +191,24 @@ export async function getOhlcFromTicks(
   symbol: string,
   intervalMinutes: number,
   range: TimeRange,
-  options: SelectOptions = {}
+  options: SelectOptions = {},
 ): Promise<Ohlc[]> {
   const opts = { ...DEFAULT_SELECT_OPTIONS, ...options }
-  
+
   validateSymbol(symbol)
   validateTimeRange(range)
-  
+
   if (intervalMinutes <= 0) {
     throw new ValidationError('Interval minutes must be positive', 'intervalMinutes', intervalMinutes)
   }
-  
+
   if (opts.limit > 10000) {
     throw new ValidationError('Limit cannot exceed 10,000 records', 'limit', opts.limit)
   }
 
   try {
     const intervalSpec = `${intervalMinutes} minutes`
-    
+
     const results = await sql`
       SELECT
         time_bucket(${intervalSpec}, time) as bucket,
@@ -247,14 +243,14 @@ export async function getOhlcFromTicks(
       high: row.high,
       low: row.low,
       close: row.close,
-      volume: row.volume ?? undefined
+      volume: row.volume ?? undefined,
     }))
   } catch (error) {
     throw new QueryError(
       'Failed to generate OHLC from ticks',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT time_bucket FROM price_ticks',
-      [symbol, intervalMinutes, range.from, range.to]
+      [symbol, intervalMinutes, range.from, range.to],
     )
   }
 }
@@ -264,7 +260,7 @@ export async function getOhlcFromTicks(
  */
 export async function getLatestPrice(
   sql: SqlInstance,
-  symbol: string
+  symbol: string,
 ): Promise<number | null> {
   validateSymbol(symbol)
 
@@ -283,7 +279,7 @@ export async function getLatestPrice(
       'Failed to retrieve latest price',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT price FROM price_ticks',
-      [symbol]
+      [symbol],
     )
   }
 }
@@ -293,14 +289,14 @@ export async function getLatestPrice(
  */
 export async function getMultiSymbolLatest(
   sql: SqlInstance,
-  symbols: string[]
+  symbols: string[],
 ): Promise<MultiSymbolLatest> {
   if (symbols.length === 0) {
     return {
       prices: [],
       retrievedAt: new Date(),
       requested: 0,
-      found: 0
+      found: 0,
     }
   }
 
@@ -329,21 +325,21 @@ export async function getMultiSymbolLatest(
       symbol: row.symbol,
       price: row.price,
       volume: row.volume ?? undefined,
-      timestamp: new Date(row.time)
+      timestamp: new Date(row.time),
     }))
 
     return {
       prices,
       retrievedAt: new Date(),
       requested: symbols.length,
-      found: prices.length
+      found: prices.length,
     }
   } catch (error) {
     throw new QueryError(
       'Failed to retrieve multi-symbol latest prices',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT DISTINCT ON (symbol) FROM price_ticks',
-      symbols
+      symbols,
     )
   }
 }
@@ -355,11 +351,11 @@ export async function* getTicksStream(
   sql: SqlInstance,
   symbol: string,
   range: TimeRange,
-  options: StreamingOptions = {}
+  options: StreamingOptions = {},
 ): AsyncIterable<PriceTick[]> {
   validateSymbol(symbol)
   validateTimeRange(range)
-  
+
   const batchSize = options.batchSize || 1000
 
   try {
@@ -377,13 +373,15 @@ export async function* getTicksStream(
     `.cursor(batchSize)
 
     for await (const rows of cursor) {
-      const ticks: PriceTick[] = (rows as { symbol: string; price: number; volume: number | null; time: string }[]).map((row) => ({
-        symbol: row.symbol,
-        price: row.price,
-        volume: row.volume ?? undefined,
-        timestamp: row.time
-      }))
-      
+      const ticks: PriceTick[] = (rows as { symbol: string; price: number; volume: number | null; time: string }[]).map(
+        (row) => ({
+          symbol: row.symbol,
+          price: row.price,
+          volume: row.volume ?? undefined,
+          timestamp: row.time,
+        }),
+      )
+
       yield ticks
     }
   } catch (error) {
@@ -391,7 +389,7 @@ export async function* getTicksStream(
       'Failed to stream price ticks',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT FROM price_ticks (streaming)',
-      [symbol, range.from, range.to]
+      [symbol, range.from, range.to],
     )
   }
 }
@@ -404,12 +402,12 @@ export async function* getOhlcStream(
   symbol: string,
   interval: TimeInterval,
   range: TimeRange,
-  options: StreamingOptions = {}
+  options: StreamingOptions = {},
 ): AsyncIterable<Ohlc[]> {
   validateSymbol(symbol)
   validateTimeRange(range)
   validateTimeInterval(interval)
-  
+
   const batchSize = options.batchSize || 1000
 
   try {
@@ -431,16 +429,24 @@ export async function* getOhlcStream(
     `.cursor(batchSize)
 
     for await (const rows of cursor) {
-      const candles: Ohlc[] = (rows as { symbol: string; time: string; open: number; high: number; low: number; close: number; volume: number | null }[]).map((row) => ({
+      const candles: Ohlc[] = (rows as {
+        symbol: string
+        time: string
+        open: number
+        high: number
+        low: number
+        close: number
+        volume: number | null
+      }[]).map((row) => ({
         symbol: row.symbol,
         timestamp: row.time,
         open: row.open,
         high: row.high,
         low: row.low,
         close: row.close,
-        volume: row.volume ?? undefined
+        volume: row.volume ?? undefined,
       }))
-      
+
       yield candles
     }
   } catch (error) {
@@ -448,7 +454,7 @@ export async function* getOhlcStream(
       'Failed to stream OHLC data',
       error instanceof Error ? error : new Error(String(error)),
       'SELECT FROM ohlc_data (streaming)',
-      [symbol, interval, range.from, range.to]
+      [symbol, interval, range.from, range.to],
     )
   }
 }
@@ -458,7 +464,7 @@ export async function* getOhlcStream(
  */
 export async function getAvailableSymbols(
   sql: SqlInstance,
-  options: SelectOptions = {}
+  options: SelectOptions = {},
 ): Promise<Array<{ symbol: string; assetType: string; exchange?: string; isActive: boolean }>> {
   const opts = { ...DEFAULT_SELECT_OPTIONS, ...options }
 
@@ -485,13 +491,13 @@ export async function getAvailableSymbols(
       symbol: row.symbol,
       assetType: row.asset_type,
       exchange: row.exchange ?? undefined,
-      isActive: row.is_active
+      isActive: row.is_active,
     })) as Array<{ symbol: string; assetType: string; exchange?: string; isActive: boolean }>
   } catch (error) {
     throw new QueryError(
       'Failed to retrieve available symbols',
       error instanceof Error ? error : new Error(String(error)),
-      'SELECT FROM symbols'
+      'SELECT FROM symbols',
     )
   }
 }
@@ -532,12 +538,12 @@ function validateTimeRange(range: TimeRange): void {
   // Limit range to prevent excessive queries
   const maxRangeDays = 365 // 1 year
   const rangeDays = (range.to.getTime() - range.from.getTime()) / (1000 * 60 * 60 * 24)
-  
+
   if (rangeDays > maxRangeDays) {
     throw new ValidationError(
-      `Time range cannot exceed ${maxRangeDays} days`, 
-      'range', 
-      `${rangeDays} days`
+      `Time range cannot exceed ${maxRangeDays} days`,
+      'range',
+      `${rangeDays} days`,
     )
   }
 }
@@ -547,12 +553,12 @@ function validateTimeRange(range: TimeRange): void {
  */
 function validateTimeInterval(interval: TimeInterval): void {
   const validIntervals: TimeInterval[] = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w']
-  
+
   if (!validIntervals.includes(interval)) {
     throw new ValidationError(
       `Invalid time interval. Must be one of: ${validIntervals.join(', ')}`,
       'interval',
-      interval
+      interval,
     )
   }
 }

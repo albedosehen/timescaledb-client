@@ -5,18 +5,10 @@
  * with comprehensive SSL support and error handling.
  */
 
-// TODO(module): Replace with proper postgres.js import when module resolution is fixed
-// import postgres from 'postgres'
-const postgres = (() => {
-  throw new Error('postgres.js not available - this is a placeholder implementation')
-}) as (config: Record<string, unknown>) => SqlInstance
-import type { ConnectionConfig, SSLConfig, Logger } from '../types/config.ts'
+import postgres from 'postgres'
+import type { ConnectionConfig, Logger, SSLConfig } from '../types/config.ts'
 import type { SqlInstance } from '../types/internal.ts'
-import {
-  ConnectionError,
-  ConfigurationError,
-  ValidationError
-} from '../types/errors.ts'
+import { ConfigurationError, ConnectionError, ValidationError } from '../types/errors.ts'
 
 /**
  * Connection string parser result
@@ -29,7 +21,7 @@ interface ParsedConnectionString {
   password?: string
   ssl?: boolean
   sslmode?: string | undefined
-  "application_name"?: string | undefined
+  'application_name'?: string | undefined
 }
 
 /**
@@ -61,19 +53,19 @@ export class DatabaseConnection {
 
       this.logger?.debug('Initializing new database connection')
       const postgresConfig = await this.buildPostgresConfig()
-      
+
       this.sql = postgres(postgresConfig)
-      
+
       // Test the connection
       await this.testConnection()
-      
+
       this.logger?.info('Database connection established successfully')
       return this.sql as SqlInstance
     } catch (error) {
       const connectionError = new ConnectionError(
         'Failed to establish database connection',
         error instanceof Error ? error : new Error(String(error)),
-        { config: this.sanitizeConfig() }
+        { config: this.sanitizeConfig() },
       )
       this.logger?.error('Connection failed', connectionError)
       throw connectionError
@@ -94,7 +86,7 @@ export class DatabaseConnection {
         this.logger?.error('Error closing connection', error instanceof Error ? error : new Error(String(error)))
         throw new ConnectionError(
           'Failed to close database connection',
-          error instanceof Error ? error : new Error(String(error))
+          error instanceof Error ? error : new Error(String(error)),
         )
       }
     }
@@ -128,7 +120,7 @@ export class DatabaseConnection {
     try {
       this.logger?.debug('Testing database connection')
       const result = await this.sql`SELECT 1 as test, version() as version`
-      
+
       if (!result || result.length === 0) {
         throw new ConnectionError('Invalid connection test response')
       }
@@ -137,7 +129,7 @@ export class DatabaseConnection {
     } catch (error) {
       throw new ConnectionError(
         'Connection test failed',
-        error instanceof Error ? error : new Error(String(error))
+        error instanceof Error ? error : new Error(String(error)),
       )
     }
   }
@@ -152,7 +144,7 @@ export class DatabaseConnection {
 
     try {
       this.logger?.debug('Validating TimescaleDB extension')
-      
+
       // Check if TimescaleDB extension is installed
       const extensionResult = await this.sql`
         SELECT EXISTS(
@@ -164,7 +156,7 @@ export class DatabaseConnection {
         throw new ConfigurationError(
           'TimescaleDB extension is not installed',
           'timescaledb_extension',
-          false
+          false,
         )
       }
 
@@ -180,7 +172,7 @@ export class DatabaseConnection {
       throw new ConfigurationError(
         'Failed to validate TimescaleDB extension',
         'timescaledb_validation',
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       )
     }
   }
@@ -248,7 +240,7 @@ export class DatabaseConnection {
           throw new ConfigurationError(
             'Failed to retrieve password from function',
             'password',
-            error instanceof Error ? error.message : String(error)
+            error instanceof Error ? error.message : String(error),
           )
         }
       } else {
@@ -304,7 +296,7 @@ export class DatabaseConnection {
     if (ssl === true && !sslmode) return true
 
     const sslConfig: Record<string, unknown> = {}
-    
+
     if (sslmode) {
       switch (sslmode) {
         case 'disable':
@@ -400,7 +392,7 @@ export class DatabaseConnection {
       throw new ConfigurationError(
         'Invalid connection string format',
         'connectionString',
-        connectionString
+        connectionString,
       )
     }
   }
@@ -413,7 +405,7 @@ export class DatabaseConnection {
     if (!this.config.connectionString && !this.config.host && !this.config.path) {
       throw new ValidationError(
         'Must provide either connectionString, host, or path',
-        'connectionString'
+        'connectionString',
       )
     }
 
@@ -432,7 +424,11 @@ export class DatabaseConnection {
     }
 
     if (this.config.connectTimeout !== undefined && this.config.connectTimeout < 1) {
-      throw new ValidationError('connectTimeout must be at least 1 second', 'connectTimeout', this.config.connectTimeout)
+      throw new ValidationError(
+        'connectTimeout must be at least 1 second',
+        'connectTimeout',
+        this.config.connectTimeout,
+      )
     }
 
     // Validate SSL configuration
@@ -449,7 +445,7 @@ export class DatabaseConnection {
       throw new ValidationError(
         'Invalid SSL mode. Must be one of: disable, allow, prefer, require, verify-ca, verify-full',
         'ssl.mode',
-        ssl.mode
+        ssl.mode,
       )
     }
 
@@ -470,7 +466,7 @@ export class DatabaseConnection {
    */
   private sanitizeConfig(): Record<string, unknown> {
     const sanitized = { ...this.config }
-    
+
     // Remove sensitive information
     if (sanitized.password) {
       sanitized.password = '[REDACTED]'
@@ -501,7 +497,7 @@ export class DatabaseConnection {
  */
 export function createDatabaseConnection(
   config: ConnectionConfig,
-  logger?: Logger
+  logger?: Logger,
 ): DatabaseConnection {
   return new DatabaseConnection(config, logger)
 }
