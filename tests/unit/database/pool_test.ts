@@ -1,22 +1,22 @@
 // deno-lint-ignore-file no-explicit-any require-await ban-unused-ignore
 /**
  * Unit tests for ConnectionPool class - Using dependency injection
- * 
+ *
  * Tests all public methods, configuration validation, retry logic,
  * metrics collection, and various connection scenarios for the ConnectionPool class.
  * Aims for 95%+ code coverage following project testing standards.
  */
 
-import { describe, it, beforeEach, afterEach } from '@std/testing/bdd'
-import { assertEquals, assertRejects, assert, assertInstanceOf } from '@std/assert'
-import { stub, restore } from '@std/testing/mock'
+import { afterEach, beforeEach, describe, it } from '@std/testing/bdd'
+import { assert, assertEquals, assertInstanceOf, assertRejects } from '@std/assert'
+import { restore, stub } from '@std/testing/mock'
 import { ConnectionPool, createConnectionPool } from '../../../src/database/pool.ts'
 import type { ClientOptions } from '../../../src/types/config.ts'
 import type { SqlInstance } from '../../../src/types/internal.ts'
 import { ConnectionError } from '../../../src/types/errors.ts'
 import { createPostgresMock, type ExtendedMockSql } from '../../mocks/postgres_mock.ts'
 import { TestLogger } from '../../utils/test_helpers.ts'
-import { TEST_CONNECTION_CONFIGS, TEST_CLIENT_OPTIONS } from '../../fixtures/database_fixtures.ts'
+import { TEST_CLIENT_OPTIONS, TEST_CONNECTION_CONFIGS } from '../../fixtures/database_fixtures.ts'
 
 /**
  * Create a mock postgres factory that supports the full postgres.js interface
@@ -89,9 +89,9 @@ describe('ConnectionPool', () => {
         const connectionConfig = TEST_CONNECTION_CONFIGS.test!
         const clientOptions = TEST_CLIENT_OPTIONS.test!
         const mockPostgresFactory = createMockPostgresFactory()
-        
+
         const pool = new ConnectionPool(connectionConfig, logger, clientOptions, mockPostgresFactory)
-        
+
         assertInstanceOf(pool, ConnectionPool)
         assertEquals(pool.getConnectionState().isConnected, false)
       })
@@ -99,28 +99,28 @@ describe('ConnectionPool', () => {
       it('should create ConnectionPool with minimal configuration', () => {
         const connectionConfig = TEST_CONNECTION_CONFIGS.minimal!
         const mockPostgresFactory = createMockPostgresFactory()
-        
+
         const pool = new ConnectionPool(connectionConfig, logger, {}, mockPostgresFactory)
-        
+
         assertInstanceOf(pool, ConnectionPool)
       })
 
       it('should create ConnectionPool without logger', () => {
         const connectionConfig = TEST_CONNECTION_CONFIGS.test!
         const mockPostgresFactory = createMockPostgresFactory()
-        
+
         const pool = new ConnectionPool(connectionConfig, undefined, {}, mockPostgresFactory)
-        
+
         assertInstanceOf(pool, ConnectionPool)
       })
 
       it('should build pool configuration with default values', () => {
         const connectionConfig = TEST_CONNECTION_CONFIGS.minimal!
         const mockPostgresFactory = createMockPostgresFactory()
-        
+
         const pool = new ConnectionPool(connectionConfig, logger, {}, mockPostgresFactory)
         const stats = pool.getStats()
-        
+
         assertEquals(stats.total, 10) // Default maxConnections
       })
 
@@ -132,10 +132,10 @@ describe('ConnectionPool', () => {
           retryBaseDelay: 500,
         }
         const mockPostgresFactory = createMockPostgresFactory()
-        
+
         const pool = new ConnectionPool(connectionConfig, logger, clientOptions, mockPostgresFactory)
         const stats = pool.getStats()
-        
+
         assertEquals(stats.total, 5)
       })
     })
@@ -150,9 +150,9 @@ describe('ConnectionPool', () => {
         const connectionConfig = TEST_CONNECTION_CONFIGS.test!
         const mockPostgresFactory = createMockPostgresFactory(mockSql)
         const pool = new ConnectionPool(connectionConfig, logger, {}, mockPostgresFactory)
-        
+
         const sql = await pool.acquire()
-        
+
         assertInstanceOf(sql, Object)
         assertEquals(pool.getConnectionState().isConnected, true)
       })
@@ -161,10 +161,10 @@ describe('ConnectionPool', () => {
         const connectionConfig = TEST_CONNECTION_CONFIGS.test!
         const mockPostgresFactory = createMockPostgresFactory(mockSql)
         const pool = new ConnectionPool(connectionConfig, logger, {}, mockPostgresFactory)
-        
+
         const sql1 = await pool.acquire()
         const sql2 = await pool.acquire()
-        
+
         assertEquals(sql1, sql2)
       })
     })
@@ -174,14 +174,14 @@ describe('ConnectionPool', () => {
         const connectionConfig = TEST_CONNECTION_CONFIGS.test!
         const mockPostgresFactory = createMockPostgresFactory(mockSql)
         const pool = new ConnectionPool(connectionConfig, logger, {}, mockPostgresFactory)
-        
+
         // Initiate shutdown
         await pool.shutdown()
-        
+
         await assertRejects(
           () => pool.acquire(),
           ConnectionError,
-          'Connection pool is shutting down'
+          'Connection pool is shutting down',
         )
       })
     })
@@ -196,17 +196,17 @@ describe('ConnectionPool', () => {
         const connectionConfig = TEST_CONNECTION_CONFIGS.test!
         const mockPostgresFactory = createMockPostgresFactory(mockSql)
         const pool = new ConnectionPool(connectionConfig, logger, {}, mockPostgresFactory)
-        
+
         const mockResult = [{ test: 1 }]
         currentTime = 1000 // Start time
-        
+
         const result = await pool.query(async (_sql) => {
           currentTime = 1025 // End time (25ms duration)
           return mockResult
         })
-        
+
         assertEquals(result, mockResult)
-        
+
         const stats = pool.getStats()
         assertEquals(stats.totalQueries, 1)
         assertEquals(stats.errorCount, 0)
@@ -219,21 +219,25 @@ describe('ConnectionPool', () => {
         const connectionConfig = TEST_CONNECTION_CONFIGS.test!
         const mockPostgresFactory = createMockPostgresFactory(mockSql)
         const pool = new ConnectionPool(connectionConfig, logger, {}, mockPostgresFactory)
-        
+
         currentTime = 1000
-        
-        await assertRejects(async () => {
-          await pool.query(async () => {
-            currentTime = 1030 // 30ms duration
-            throw new Error('Query failed')
-          })
-        }, Error, 'Query failed')
-        
+
+        await assertRejects(
+          async () => {
+            await pool.query(async () => {
+              currentTime = 1030 // 30ms duration
+              throw new Error('Query failed')
+            })
+          },
+          Error,
+          'Query failed',
+        )
+
         const stats = pool.getStats()
         assertEquals(stats.totalQueries, 1)
         assertEquals(stats.errorCount, 1)
         assertEquals(stats.averageQueryTime, 30)
-        
+
         assert(logger.hasLogMessage('Query execution failed', 'error'))
       })
     })
@@ -247,9 +251,9 @@ describe('ConnectionPool', () => {
       const connectionConfig = TEST_CONNECTION_CONFIGS.test!
       const mockPostgresFactory = createMockPostgresFactory(mockSql)
       const pool = new ConnectionPool(connectionConfig, logger, {}, mockPostgresFactory)
-      
+
       const stats = pool.getStats()
-      
+
       assertEquals(stats.totalQueries, 0)
       assertEquals(stats.errorCount, 0)
       assertEquals(stats.averageQueryTime, 0)
@@ -266,9 +270,9 @@ describe('ConnectionPool', () => {
       const connectionConfig = TEST_CONNECTION_CONFIGS.test!
       const mockPostgresFactory = createMockPostgresFactory(mockSql)
       const pool = new ConnectionPool(connectionConfig, logger, {}, mockPostgresFactory)
-      
+
       const isHealthy = await pool.healthCheck()
-      
+
       assertEquals(isHealthy, false)
     })
 
@@ -276,11 +280,11 @@ describe('ConnectionPool', () => {
       const connectionConfig = TEST_CONNECTION_CONFIGS.test!
       const mockPostgresFactory = createMockPostgresFactory(mockSql)
       const pool = new ConnectionPool(connectionConfig, logger, {}, mockPostgresFactory)
-      
+
       await pool.acquire()
-      
+
       const isHealthy = await pool.healthCheck()
-      
+
       assertEquals(isHealthy, true)
     })
   })
@@ -293,9 +297,9 @@ describe('ConnectionPool', () => {
       const connectionConfig = TEST_CONNECTION_CONFIGS.test!
       const clientOptions = TEST_CLIENT_OPTIONS.test!
       const mockPostgresFactory = createMockPostgresFactory(mockSql)
-      
+
       const pool = createConnectionPool(connectionConfig, logger, clientOptions, mockPostgresFactory)
-      
+
       assertInstanceOf(pool, ConnectionPool)
     })
   })

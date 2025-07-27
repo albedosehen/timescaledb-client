@@ -17,19 +17,19 @@
 export interface Logger {
   /** Log debug-level messages with optional metadata */
   debug(message: string, meta?: Record<string, unknown>): void
-  
+
   /** Log info-level messages with optional metadata */
   info(message: string, meta?: Record<string, unknown>): void
-  
+
   /** Log warning-level messages with optional metadata */
   warn(message: string, meta?: Record<string, unknown>): void
-  
+
   /** Log error-level messages with optional error object and metadata */
   error(message: string, error?: Error, meta?: Record<string, unknown>): void
-  
+
   /** Create child logger with inherited context */
   child(context: Record<string, unknown>): Logger
-  
+
   /** Get current logger context (optional) */
   getContext?(): Record<string, unknown>
 }
@@ -44,11 +44,11 @@ export interface Logger {
  */
 export abstract class LoggerAdapter implements Logger {
   protected readonly context: Record<string, unknown>
-  
+
   constructor(context: Record<string, unknown> = {}) {
     this.context = Object.freeze({ ...context })
   }
-  
+
   /**
    * Create child logger with inherited context
    * @param additionalContext Additional context to merge with parent context
@@ -58,10 +58,10 @@ export abstract class LoggerAdapter implements Logger {
     const ChildClass = this.constructor as new (context: Record<string, unknown>) => LoggerAdapter
     return new ChildClass({
       ...this.context,
-      ...additionalContext
+      ...additionalContext,
     })
   }
-  
+
   /**
    * Get current logger context
    * @returns Copy of current context
@@ -69,7 +69,7 @@ export abstract class LoggerAdapter implements Logger {
   getContext(): Record<string, unknown> {
     return { ...this.context }
   }
-  
+
   /**
    * Merge call-specific metadata with logger context
    * @param meta Optional metadata from logging call
@@ -78,7 +78,7 @@ export abstract class LoggerAdapter implements Logger {
   protected mergeMetadata(meta?: Record<string, unknown>): Record<string, unknown> {
     return { ...this.context, ...meta }
   }
-  
+
   // Abstract methods that must be implemented by concrete adapters
   abstract debug(message: string, meta?: Record<string, unknown>): void
   abstract info(message: string, meta?: Record<string, unknown>): void
@@ -146,7 +146,7 @@ export interface CustomLoggerConfig {
 /**
  * Union type for all supported logger configurations
  */
-export type LoggerConfig = 
+export type LoggerConfig =
   | StoatLoggerConfig
   | ConsoleLoggerConfig
   | CustomLoggerConfig

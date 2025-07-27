@@ -12,18 +12,15 @@ console.log('Testing backward compatibility...\n')
 // Test 1: Legacy logger interface compatibility
 console.log('1. Testing legacy logger interface:')
 const legacyLogger: Logger = {
-  debug: (msg: string, meta?: Record<string, unknown>) => 
-    console.log(`[DEBUG] ${msg}`, meta || ''),
-  info: (msg: string, meta?: Record<string, unknown>) => 
-    console.log(`[INFO] ${msg}`, meta || ''),
-  warn: (msg: string, meta?: Record<string, unknown>) => 
-    console.log(`[WARN] ${msg}`, meta || ''),
-  error: (msg: string, error?: Error, meta?: Record<string, unknown>) => 
+  debug: (msg: string, meta?: Record<string, unknown>) => console.log(`[DEBUG] ${msg}`, meta || ''),
+  info: (msg: string, meta?: Record<string, unknown>) => console.log(`[INFO] ${msg}`, meta || ''),
+  warn: (msg: string, meta?: Record<string, unknown>) => console.log(`[WARN] ${msg}`, meta || ''),
+  error: (msg: string, error?: Error, meta?: Record<string, unknown>) =>
     console.log(`[ERROR] ${msg}`, error?.message || '', meta || ''),
   child: (context: Record<string, unknown>) => {
     console.log('Creating child with context:', context)
     return legacyLogger
-  }
+  },
 }
 
 // Test that legacy logger works
@@ -36,7 +33,7 @@ console.log('\n2. Testing ClientOptions with legacy logger:')
 const legacyOptions: ClientOptions = {
   logger: legacyLogger,
   maxRetries: 3,
-  queryTimeout: 5000
+  queryTimeout: 5000,
 }
 
 const resolvedLegacy = resolveLoggerFromOptions(legacyOptions)
@@ -53,9 +50,9 @@ const newOptions: ClientOptions = {
   loggerConfig: {
     type: 'console',
     options: { level: 'debug', prettyPrint: false },
-    context: { service: 'test' }
+    context: { service: 'test' },
   },
-  maxRetries: 3
+  maxRetries: 3,
 }
 
 const resolvedNew = resolveLoggerFromOptions(newOptions)
@@ -73,8 +70,8 @@ const mixedOptions: ClientOptions = {
   loggerConfig: {
     type: 'console',
     options: { level: 'info', prettyPrint: false },
-    context: { source: 'priority-test' }
-  }
+    context: { source: 'priority-test' },
+  },
 }
 
 const resolvedMixed = resolveLoggerFromOptions(mixedOptions)
@@ -104,7 +101,7 @@ console.log('✅ Optional chaining with undefined logger works correctly')
 const definedLogger: Logger | undefined = createLogger({
   type: 'console',
   options: { level: 'debug', prettyPrint: false },
-  context: { test: 'optional-chaining' }
+  context: { test: 'optional-chaining' },
 })
 
 definedLogger?.debug('Optional chaining debug message')
@@ -117,18 +114,18 @@ console.log('\n6. Testing realistic client code patterns:')
 // Simulate how TimescaleClient would use optional chaining
 function simulateClientOperation(logger?: Logger, operationName = 'test-operation') {
   logger?.info('Starting operation', { operation: operationName })
-  
+
   try {
     // Simulate work
     const result = { success: true, duration: 42 }
-    logger?.debug('Operation completed', { 
+    logger?.debug('Operation completed', {
       operation: operationName,
-      result 
+      result,
     })
     return result
   } catch (error) {
     logger?.error('Operation failed', error instanceof Error ? error : new Error(String(error)), {
-      operation: operationName
+      operation: operationName,
     })
     throw error
   }

@@ -15,7 +15,6 @@ import { ConsoleLoggerAdapter } from './adapters/console.ts'
  * with fallback to console logging and environment-aware auto-detection.
  */
 export class LoggerFactory implements ILoggerFactory {
-  
   /**
    * Create logger instance based on configuration
    * @param config Logger configuration specifying type and options
@@ -25,25 +24,25 @@ export class LoggerFactory implements ILoggerFactory {
     if (config === 'auto') {
       return this.createAuto()
     }
-    
+
     switch (config.type) {
       case 'console':
         return new ConsoleLoggerAdapter(config.options, config.context)
-      
+
       case 'stoat':
         // Import Stoat adapter dynamically to avoid import errors when package not available
         return this.createStoatLogger(config)
-      
+
       case 'custom':
         return this.wrapCustomLogger(config.logger, config.context)
-      
+
       default:
         // TypeScript should ensure this never happens, but provide fallback
         console.warn(`Unknown logger type, falling back to console logger`)
         return new ConsoleLoggerAdapter({}, {})
     }
   }
-  
+
   /**
    * Create logger with auto-detection based on environment
    * @param context Optional initial context for the logger
@@ -51,24 +50,24 @@ export class LoggerFactory implements ILoggerFactory {
    */
   createAuto(context: Record<string, unknown> = {}): Logger {
     const environment = this.detectEnvironment()
-    
+
     switch (environment) {
       case 'development':
         return new ConsoleLoggerAdapter({
           level: 'debug',
           prettyPrint: true,
           colors: true,
-          timestamp: true
+          timestamp: true,
         }, context)
-      
+
       case 'test':
         return new ConsoleLoggerAdapter({
           level: 'error',
           prettyPrint: false,
           colors: false,
-          timestamp: false
+          timestamp: false,
         }, context)
-      
+
       case 'production':
         // Try Stoat first, fallback to console
         if (this.isStoatAvailable()) {
@@ -77,42 +76,42 @@ export class LoggerFactory implements ILoggerFactory {
             options: {
               level: 'info',
               prettyPrint: false,
-              structured: true
+              structured: true,
             },
-            context
+            context,
           })
         }
         return new ConsoleLoggerAdapter({
           level: 'info',
           prettyPrint: false,
           colors: false,
-          timestamp: true
+          timestamp: true,
         }, context)
-      
+
       default:
         return new ConsoleLoggerAdapter({
           level: 'info',
           prettyPrint: true,
           colors: true,
-          timestamp: true
+          timestamp: true,
         }, context)
     }
   }
-  
+
   /**
    * Detect current environment
    */
   private detectEnvironment(): 'development' | 'test' | 'production' | 'unknown' {
     const denoEnv = Deno.env.get('DENO_ENV')
     const nodeEnv = Deno.env.get('NODE_ENV')
-    
+
     if (denoEnv === 'test' || nodeEnv === 'test') return 'test'
     if (denoEnv === 'development' || nodeEnv === 'development') return 'development'
     if (denoEnv === 'production' || nodeEnv === 'production') return 'production'
-    
+
     return 'unknown'
   }
-  
+
   /**
    * Check if Stoat library is available
    */
@@ -124,7 +123,7 @@ export class LoggerFactory implements ILoggerFactory {
       return false
     }
   }
-  
+
   /**
    * Create Stoat logger instance
    */
@@ -137,10 +136,10 @@ export class LoggerFactory implements ILoggerFactory {
       level: config.options?.level || 'info',
       prettyPrint: config.options?.prettyPrint ?? false,
       colors: false,
-      timestamp: true
+      timestamp: true,
     }, config.context || {})
   }
-  
+
   /**
    * Wrap custom logger to add child logger support if missing
    */
@@ -149,7 +148,7 @@ export class LoggerFactory implements ILoggerFactory {
     if (typeof logger.child === 'function') {
       return logger
     }
-    
+
     // Wrap logger to add child support
     return new CustomLoggerWrapper(logger, context || {})
   }
@@ -161,32 +160,32 @@ export class LoggerFactory implements ILoggerFactory {
 class CustomLoggerWrapper implements Logger {
   constructor(
     private readonly wrappedLogger: Logger,
-    private readonly context: Record<string, unknown> = {}
+    private readonly context: Record<string, unknown> = {},
   ) {}
-  
+
   debug(message: string, meta?: Record<string, unknown>): void {
     this.wrappedLogger.debug(message, { ...this.context, ...meta })
   }
-  
+
   info(message: string, meta?: Record<string, unknown>): void {
     this.wrappedLogger.info(message, { ...this.context, ...meta })
   }
-  
+
   warn(message: string, meta?: Record<string, unknown>): void {
     this.wrappedLogger.warn(message, { ...this.context, ...meta })
   }
-  
+
   error(message: string, error?: Error, meta?: Record<string, unknown>): void {
     this.wrappedLogger.error(message, error, { ...this.context, ...meta })
   }
-  
+
   child(additionalContext: Record<string, unknown>): Logger {
     return new CustomLoggerWrapper(this.wrappedLogger, {
       ...this.context,
-      ...additionalContext
+      ...additionalContext,
     })
   }
-  
+
   getContext(): Record<string, unknown> {
     return { ...this.context }
   }

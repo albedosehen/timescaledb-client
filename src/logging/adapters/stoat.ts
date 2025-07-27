@@ -25,46 +25,48 @@ export class StoatLoggerAdapter extends LoggerAdapter {
   private readonly options: StoatOptions
   // deno-lint-ignore no-explicit-any
   private initPromise: Promise<any> | null = null
-  
+
   constructor(options: StoatOptions = {}, context: Record<string, unknown> = {}) {
     super(context)
     this.options = options
     // Start async initialization but don't wait for it
     this.initPromise = this.initializeStoatLogger()
   }
-  
+
   debug(message: string, meta?: Record<string, unknown>): void {
     this.logSync('debug', message, this.mergeMetadata(meta))
   }
-  
+
   info(message: string, meta?: Record<string, unknown>): void {
     this.logSync('info', message, this.mergeMetadata(meta))
   }
-  
+
   warn(message: string, meta?: Record<string, unknown>): void {
     this.logSync('warn', message, this.mergeMetadata(meta))
   }
-  
+
   error(message: string, error?: Error, meta?: Record<string, unknown>): void {
-    const errorMeta = error ? {
-      error: error.message,
-      stack: error.stack,
-      name: error.name,
-      cause: error.cause
-    } : {}
+    const errorMeta = error
+      ? {
+        error: error.message,
+        stack: error.stack,
+        name: error.name,
+        cause: error.cause,
+      }
+      : {}
     this.logSync('error', message, { ...this.mergeMetadata(meta), ...errorMeta })
   }
-  
+
   /**
    * Create child logger with inherited options and merged context
    */
   override child(additionalContext: Record<string, unknown>): Logger {
     return new StoatLoggerAdapter(this.options, {
       ...this.context,
-      ...additionalContext
+      ...additionalContext,
     })
   }
-  
+
   /**
    * Synchronous logging method that queues messages for async processing
    */
@@ -94,7 +96,7 @@ export class StoatLoggerAdapter extends LoggerAdapter {
 
       // Try to initialize for next time (fire and forget)
       if (this.initPromise) {
-        this.initPromise.then(logger => {
+        this.initPromise.then((logger) => {
           this.stoatLogger = logger
         }).catch(() => {
           // Ignore initialization errors - continue with console fallback
@@ -118,18 +120,18 @@ export class StoatLoggerAdapter extends LoggerAdapter {
   /**
    * Create and configure Stoat logger instance
    */
-  private createStoatInstance(options: StoatOptions): StoatBasicLogger  {
+  private createStoatInstance(options: StoatOptions): StoatBasicLogger {
     try {
       // deno-lint-ignore no-explicit-any
       const config: any = {
         level: options.level || 'info',
         prettyPrint: options.prettyPrint ?? false,
-        structured: options.structured ?? true
+        structured: options.structured ?? true,
       }
 
       // Add transports if specified
       if (options.transports && options.transports.length > 0) {
-        config.transports = options.transports.map(transport => this.createTransport(transport))
+        config.transports = options.transports.map((transport) => this.createTransport(transport))
       }
 
       // Add serializer configuration
@@ -137,7 +139,7 @@ export class StoatLoggerAdapter extends LoggerAdapter {
         config.serializer = {
           maxDepth: options.serializer.maxDepth || 10,
           includeStackTrace: options.serializer.includeStackTrace ?? false,
-          includeNonEnumerable: options.serializer.includeNonEnumerable ?? false
+          includeNonEnumerable: options.serializer.includeNonEnumerable ?? false,
         }
       }
 
@@ -146,7 +148,7 @@ export class StoatLoggerAdapter extends LoggerAdapter {
       throw new Error(`Failed to initialize Stoat logger: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
-  
+
   /**
    * Create transport configuration for Stoat
    */
@@ -154,38 +156,38 @@ export class StoatLoggerAdapter extends LoggerAdapter {
   private createTransport(transport: any): unknown {
     const baseConfig = {
       type: transport.type,
-      minLevel: transport.minLevel || 'info'
+      minLevel: transport.minLevel || 'info',
     }
-    
+
     switch (transport.type) {
       case 'console':
         return {
           ...baseConfig,
-          format: transport.format || 'json'
+          format: transport.format || 'json',
         }
-      
+
       case 'file':
         return {
           ...baseConfig,
           path: transport.options?.path || './logs/app.log',
           format: transport.format || 'json',
           async: transport.options?.async ?? true,
-          bufferSize: transport.options?.bufferSize || 1000
+          bufferSize: transport.options?.bufferSize || 1000,
         }
-      
+
       case 'http':
         return {
           ...baseConfig,
           endpoint: transport.options?.endpoint,
           batchSize: transport.options?.batchSize || 100,
-          headers: transport.options?.headers || {}
+          headers: transport.options?.headers || {},
         }
-      
+
       default:
         return baseConfig
     }
   }
-  
+
   /**
    * Check if Stoat library is available
    */
@@ -207,9 +209,9 @@ export function createStoatTransports() {
     console: (options: { format?: 'json' | 'text'; minLevel?: string } = {}) => ({
       type: 'console' as const,
       format: options.format || 'json',
-      minLevel: options.minLevel || 'debug'
+      minLevel: options.minLevel || 'debug',
     }),
-    
+
     file: (options: { path?: string; format?: 'json' | 'text'; minLevel?: string; async?: boolean } = {}) => ({
       type: 'file' as const,
       format: options.format || 'json',
@@ -217,17 +219,17 @@ export function createStoatTransports() {
       options: {
         path: options.path || './logs/app.log',
         async: options.async ?? true,
-        bufferSize: 1000
-      }
+        bufferSize: 1000,
+      },
     }),
-    
+
     http: (options: { endpoint: string; minLevel?: string; batchSize?: number } = { endpoint: '' }) => ({
       type: 'http' as const,
       minLevel: options.minLevel || 'warn',
       options: {
         endpoint: options.endpoint,
-        batchSize: options.batchSize || 100
-      }
-    })
+        batchSize: options.batchSize || 100,
+      },
+    }),
   }
 }

@@ -1,25 +1,22 @@
 // deno-lint-ignore-file no-explicit-any ban-unused-ignore
 /**
  * Unit tests for HealthChecker class
- * 
+ *
  * Tests all public methods, configuration validation, health monitoring,
  * alert systems, and various health check scenarios for the HealthChecker class.
  * Aims for 95%+ code coverage following project testing standards.
  */
 
-import { describe, it, beforeEach, afterEach } from '@std/testing/bdd'
-import { assertEquals, assertRejects, assert, assertInstanceOf } from '@std/assert'
-import { stub, restore } from '@std/testing/mock'
-import { HealthChecker, createHealthChecker } from '../../../src/database/health.ts'
+import { afterEach, beforeEach, describe, it } from '@std/testing/bdd'
+import { assert, assertEquals, assertInstanceOf, assertRejects } from '@std/assert'
+import { restore, stub } from '@std/testing/mock'
+import { createHealthChecker, HealthChecker } from '../../../src/database/health.ts'
 import type { ClientOptions } from '../../../src/types/config.ts'
 import type { SqlInstance } from '../../../src/types/internal.ts'
 import { SchemaError, TimeoutError } from '../../../src/types/errors.ts'
 import { createPostgresMock, type ExtendedMockSql } from '../../mocks/postgres_mock.ts'
 import { TestLogger } from '../../utils/test_helpers.ts'
-import {
-  MOCK_SQL_RESPONSES,
-  TEST_CLIENT_OPTIONS
-} from '../../fixtures/database_fixtures.ts'
+import { MOCK_SQL_RESPONSES, TEST_CLIENT_OPTIONS } from '../../fixtures/database_fixtures.ts'
 
 /**
  * Mock ConnectionPool class for testing
@@ -141,17 +138,27 @@ describe('HealthChecker', () => {
     })
 
     // Set up default mock responses
-    mockSql.setMockResult('SELECT extname, extversion FROM pg_extension WHERE extname IN (\'timescaledb\', \'postgis\', \'pg_stat_statements\')', 
-      MOCK_SQL_RESPONSES.extensions)
+    mockSql.setMockResult(
+      "SELECT extname, extversion FROM pg_extension WHERE extname IN ('timescaledb', 'postgis', 'pg_stat_statements')",
+      MOCK_SQL_RESPONSES.extensions,
+    )
     mockSql.setMockResult('SELECT timescaledb_version()', MOCK_SQL_RESPONSES.timescaleVersion)
-    mockSql.setMockResult('SELECT tablename FROM pg_tables WHERE schemaname = \'public\' AND tablename = ANY($1)', 
-      MOCK_SQL_RESPONSES.tables)
-    mockSql.setMockResult('SELECT hypertable_name FROM timescaledb_information.hypertables WHERE hypertable_name = ANY($1)', 
-      MOCK_SQL_RESPONSES.hypertables)
-    mockSql.setMockResult('SELECT indexname FROM pg_indexes WHERE schemaname = \'public\' AND indexname = ANY($1)', 
-      MOCK_SQL_RESPONSES.indexes)
-    mockSql.setMockResult('SELECT name, setting, unit, boot_val, reset_val FROM pg_settings WHERE name IN ($1)', 
-      MOCK_SQL_RESPONSES.settings)
+    mockSql.setMockResult(
+      "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = ANY($1)",
+      MOCK_SQL_RESPONSES.tables,
+    )
+    mockSql.setMockResult(
+      'SELECT hypertable_name FROM timescaledb_information.hypertables WHERE hypertable_name = ANY($1)',
+      MOCK_SQL_RESPONSES.hypertables,
+    )
+    mockSql.setMockResult(
+      "SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = ANY($1)",
+      MOCK_SQL_RESPONSES.indexes,
+    )
+    mockSql.setMockResult(
+      'SELECT name, setting, unit, boot_val, reset_val FROM pg_settings WHERE name IN ($1)',
+      MOCK_SQL_RESPONSES.settings,
+    )
     mockSql.setMockResult('SELECT 1 as performance_test', [{ performance_test: 1 }])
   })
 
@@ -182,28 +189,28 @@ describe('HealthChecker', () => {
       it('should create HealthChecker with all parameters', () => {
         const clientOptions: ClientOptions = TEST_CLIENT_OPTIONS.test!
         const alertConfig: MockAlertConfig = { enabled: true }
-        
+
         const healthChecker = new HealthChecker(
           // deno-lint-ignore no-explicit-any
           mockPool as any,
           logger,
           clientOptions,
-          alertConfig as any
+          alertConfig as any,
         )
-        
+
         assertInstanceOf(healthChecker, HealthChecker)
       })
 
       it('should create HealthChecker with default parameters', () => {
         // deno-lint-ignore no-explicit-any
         const healthChecker = new HealthChecker(mockPool as any, logger)
-        
+
         assertInstanceOf(healthChecker, HealthChecker)
       })
 
       it('should create HealthChecker without logger', () => {
         const healthChecker = new HealthChecker(mockPool as any)
-        
+
         assertInstanceOf(healthChecker, HealthChecker)
       })
 
@@ -211,7 +218,7 @@ describe('HealthChecker', () => {
         const clientOptions: ClientOptions = {
           queryTimeout: 15000,
         }
-        
+
         const healthChecker = new HealthChecker(mockPool as any, logger, clientOptions)
         assertInstanceOf(healthChecker, HealthChecker)
       })
@@ -220,7 +227,7 @@ describe('HealthChecker', () => {
         const clientOptions: ClientOptions = {
           queryTimeout: 8000,
         }
-        
+
         const healthChecker = new HealthChecker(mockPool as any, logger, clientOptions)
         assertInstanceOf(healthChecker, HealthChecker)
       })
@@ -234,9 +241,9 @@ describe('HealthChecker', () => {
     describe('Starting Health Monitoring', () => {
       it('should start health monitoring when enabled', () => {
         const healthChecker = new HealthChecker(mockPool as any, logger)
-        
+
         healthChecker.start()
-        
+
         try {
           assert(setIntervalStub.calls.length === 1)
           assert(logger.hasLogMessage('Starting health monitoring', 'info'))
@@ -247,10 +254,10 @@ describe('HealthChecker', () => {
 
       it('should not start when already started', () => {
         const healthChecker = new HealthChecker(mockPool as any, logger)
-        
+
         healthChecker.start()
         healthChecker.start()
-        
+
         try {
           assertEquals(setIntervalStub.calls.length, 1)
           assert(logger.hasLogMessage('Health monitoring is already started', 'warn'))
@@ -261,12 +268,12 @@ describe('HealthChecker', () => {
 
       it('should perform initial health check on start', async () => {
         const healthChecker = new HealthChecker(mockPool as any, logger)
-        
+
         // Mock the pool methods
         mockPool.setHealthCheckResult(true)
-        
+
         healthChecker.start()
-        
+
         try {
           // Wait for async operations
           await Promise.resolve()
@@ -280,9 +287,9 @@ describe('HealthChecker', () => {
       it('should handle initial health check failure', async () => {
         const healthChecker = new HealthChecker(mockPool as any, logger)
         mockPool.setHealthCheckResult(false)
-        
+
         healthChecker.start()
-        
+
         try {
           // Wait for async operations
           await Promise.resolve()
@@ -297,29 +304,29 @@ describe('HealthChecker', () => {
     describe('Stopping Health Monitoring', () => {
       it('should stop health monitoring', () => {
         const healthChecker = new HealthChecker(mockPool as any, logger)
-        
+
         healthChecker.start()
         healthChecker.stop()
-        
+
         assert(clearIntervalStub.calls.length === 1)
         assert(logger.hasLogMessage('Health monitoring stopped', 'info'))
       })
 
       it('should handle stop when not started', () => {
         const healthChecker = new HealthChecker(mockPool as any, logger)
-        
+
         healthChecker.stop()
-        
+
         assertEquals(clearIntervalStub.calls.length, 0)
       })
 
       it('should handle multiple stop calls', () => {
         const healthChecker = new HealthChecker(mockPool as any, logger)
-        
+
         healthChecker.start()
         healthChecker.stop()
         healthChecker.stop()
-        
+
         assertEquals(clearIntervalStub.calls.length, 1)
       })
     })
@@ -327,9 +334,9 @@ describe('HealthChecker', () => {
     describe('Interval Management', () => {
       it('should set up interval with correct timing', () => {
         const healthChecker = new HealthChecker(mockPool as any, logger)
-        
+
         healthChecker.start()
-        
+
         try {
           const intervalCall = setIntervalStub.calls[0]
           if (intervalCall) {
@@ -343,9 +350,9 @@ describe('HealthChecker', () => {
       it('should execute health checks on interval', async () => {
         const healthChecker = new HealthChecker(mockPool as any, logger)
         mockPool.setHealthCheckResult(true)
-        
+
         healthChecker.start()
-        
+
         try {
           // Simulate interval execution
           if (intervalCallback) {
@@ -368,9 +375,9 @@ describe('HealthChecker', () => {
       it('should perform comprehensive health check successfully', async () => {
         const healthChecker = new HealthChecker(mockPool as any, logger)
         mockPool.setHealthCheckResult(true)
-        
+
         const result = await healthChecker.performHealthCheck()
-        
+
         assertEquals(result.isHealthy, true)
         assert(result.score > 0)
         assertEquals(result.checks.connection, true)
@@ -385,9 +392,9 @@ describe('HealthChecker', () => {
       it('should update health state after successful check', async () => {
         const healthChecker = new HealthChecker(mockPool as any, logger)
         mockPool.setHealthCheckResult(true)
-        
+
         await healthChecker.performHealthCheck()
-        
+
         const status = healthChecker.getHealthStatus()
         assertEquals(status.isHealthy, true)
         assertEquals(status.consecutiveFailures, 0)
@@ -397,9 +404,9 @@ describe('HealthChecker', () => {
       it('should record health result in history', async () => {
         const healthChecker = new HealthChecker(mockPool as any, logger)
         mockPool.setHealthCheckResult(true)
-        
+
         await healthChecker.performHealthCheck()
-        
+
         const history = healthChecker.getHealthHistory()
         assertEquals(history.length, 1)
         assert(history[0])
@@ -411,15 +418,17 @@ describe('HealthChecker', () => {
       it('should timeout health check after configured time', async () => {
         const clientOptions: ClientOptions = { queryTimeout: 100 }
         const healthChecker = new HealthChecker(mockPool as any, logger, clientOptions)
-        
+
         // Mock a slow health check by making pool.healthCheck throw timeout
-        mockSql.setErrorCondition('select extname, extversion from pg_extension where extname in (\'timescaledb\', \'postgis\', \'pg_stat_statements\')', 
-          new TimeoutError('Mock timeout', 100, 'test'))
-        
+        mockSql.setErrorCondition(
+          "select extname, extversion from pg_extension where extname in ('timescaledb', 'postgis', 'pg_stat_statements')",
+          new TimeoutError('Mock timeout', 100, 'test'),
+        )
+
         await assertRejects(
           () => healthChecker.performHealthCheck(),
           TimeoutError,
-          'Health check timed out after 100ms'
+          'Health check timed out after 100ms',
         )
       })
     })
@@ -428,9 +437,9 @@ describe('HealthChecker', () => {
       it('should handle connection failure', async () => {
         const healthChecker = new HealthChecker(mockPool as any, logger)
         mockPool.setHealthCheckResult(false)
-        
+
         const result = await healthChecker.performHealthCheck()
-        
+
         assertEquals(result.isHealthy, false)
         assertEquals(result.checks.connection, false)
         assert(result.errors.length > 0)
@@ -440,13 +449,15 @@ describe('HealthChecker', () => {
       it('should handle TimescaleDB validation failure', async () => {
         const healthChecker = new HealthChecker(mockPool as any, logger)
         mockPool.setHealthCheckResult(true)
-        
+
         // Mock TimescaleDB not found
-        mockSql.setMockResult('SELECT extname, extversion FROM pg_extension WHERE extname IN (\'timescaledb\', \'postgis\', \'pg_stat_statements\')', 
-          [{ extname: 'pg_stat_statements', extversion: '1.9' }]) // No TimescaleDB
-        
+        mockSql.setMockResult(
+          "SELECT extname, extversion FROM pg_extension WHERE extname IN ('timescaledb', 'postgis', 'pg_stat_statements')",
+          [{ extname: 'pg_stat_statements', extversion: '1.9' }],
+        ) // No TimescaleDB
+
         const result = await healthChecker.performHealthCheck()
-        
+
         assertEquals(result.checks.timescaleDB, false)
         assert(result.warnings.includes('TimescaleDB extension is not installed'))
       })
@@ -454,31 +465,31 @@ describe('HealthChecker', () => {
       it('should handle schema validation failure', async () => {
         const healthChecker = new HealthChecker(mockPool as any, logger)
         mockPool.setHealthCheckResult(true)
-        
+
         // Mock missing tables
-        mockSql.setMockResult('SELECT tablename FROM pg_tables WHERE schemaname = \'public\' AND tablename = ANY($1)', [])
-        
+        mockSql.setMockResult("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = ANY($1)", [])
+
         const result = await healthChecker.performHealthCheck()
-        
+
         assertEquals(result.checks.schema, false)
-        assert(result.warnings.some(w => w.includes('Missing tables')))
+        assert(result.warnings.some((w) => w.includes('Missing tables')))
       })
 
       it('should handle performance check failure', async () => {
         const healthChecker = new HealthChecker(mockPool as any, logger)
         mockPool.setHealthCheckResult(true)
-        
+
         // Set poor performance stats
         mockPool.setStats({
           averageQueryTime: 6000, // Exceeds default threshold
           errorCount: 10,
-          totalQueries: 100
+          totalQueries: 100,
         })
-        
+
         const result = await healthChecker.performHealthCheck()
-        
+
         assertEquals(result.checks.performance, false)
-        assert(result.warnings.some(w => w.includes('Query time') || w.includes('Error rate')))
+        assert(result.warnings.some((w) => w.includes('Query time') || w.includes('Error rate')))
       })
     })
   })
@@ -489,9 +500,9 @@ describe('HealthChecker', () => {
   describe('getHealthStatus() Method', () => {
     it('should return current health status', () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
-      
+
       const status = healthChecker.getHealthStatus()
-      
+
       assertEquals(status.isHealthy, true) // Default initial state
       assertEquals(status.lastCheck, null)
       assertEquals(status.consecutiveFailures, 0)
@@ -501,9 +512,9 @@ describe('HealthChecker', () => {
     it.skip('should return status after health checks', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       mockPool.setHealthCheckResult(true)
-      
+
       await healthChecker.performHealthCheck()
-      
+
       const status = healthChecker.getHealthStatus()
       assertEquals(status.isHealthy, true)
       assertInstanceOf(status.lastCheck, Date)
@@ -514,10 +525,10 @@ describe('HealthChecker', () => {
     it('should return status with consecutive failures', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       mockPool.setHealthCheckResult(false)
-      
+
       await healthChecker.performHealthCheck()
       await healthChecker.performHealthCheck()
-      
+
       const status = healthChecker.getHealthStatus()
       assertEquals(status.isHealthy, false)
       assertEquals(status.consecutiveFailures, 2)
@@ -530,21 +541,21 @@ describe('HealthChecker', () => {
   describe('getHealthHistory() Method', () => {
     it('should return empty history initially', () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
-      
+
       const history = healthChecker.getHealthHistory()
-      
+
       assertEquals(history.length, 0)
     })
 
     it('should return history with default limit', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       mockPool.setHealthCheckResult(true)
-      
+
       // Perform multiple health checks
       for (let i = 0; i < 5; i++) {
         await healthChecker.performHealthCheck()
       }
-      
+
       const history = healthChecker.getHealthHistory()
       assertEquals(history.length, 5)
     })
@@ -552,15 +563,15 @@ describe('HealthChecker', () => {
     it('should return history with custom limit', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       mockPool.setHealthCheckResult(true)
-      
+
       // Perform multiple health checks
       for (let i = 0; i < 15; i++) {
         await healthChecker.performHealthCheck()
       }
-      
+
       const history = healthChecker.getHealthHistory(5)
       assertEquals(history.length, 5)
-      
+
       const fullHistory = healthChecker.getHealthHistory(20)
       assertEquals(fullHistory.length, 15)
     })
@@ -568,12 +579,12 @@ describe('HealthChecker', () => {
     it('should maintain history limit of 100 items', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       mockPool.setHealthCheckResult(true)
-      
+
       // Perform more than 100 health checks
       for (let i = 0; i < 105; i++) {
         await healthChecker.performHealthCheck()
       }
-      
+
       const fullHistory = healthChecker.getHealthHistory(200)
       assertEquals(fullHistory.length, 100) // Should be capped at 100
     })
@@ -586,9 +597,9 @@ describe('HealthChecker', () => {
     it('should validate TimescaleDB successfully', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       const sql = await mockPool.acquire()
-      
+
       const result = await healthChecker.validateTimescaleDB(sql)
-      
+
       assertEquals(result.isValid, true)
       assertEquals(result.version, '2.8.0')
       assert(result.extensions.includes('timescaledb@2.8.0'))
@@ -598,13 +609,15 @@ describe('HealthChecker', () => {
     it('should handle TimescaleDB not installed', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       const sql = await mockPool.acquire()
-      
+
       // Mock no TimescaleDB extension
-      mockSql.setMockResult('SELECT extname, extversion FROM pg_extension WHERE extname IN (\'timescaledb\', \'postgis\', \'pg_stat_statements\')', 
-        [{ extname: 'pg_stat_statements', extversion: '1.9' }])
-      
+      mockSql.setMockResult(
+        "SELECT extname, extversion FROM pg_extension WHERE extname IN ('timescaledb', 'postgis', 'pg_stat_statements')",
+        [{ extname: 'pg_stat_statements', extversion: '1.9' }],
+      )
+
       const result = await healthChecker.validateTimescaleDB(sql)
-      
+
       assertEquals(result.isValid, false)
       assert(result.warnings.includes('TimescaleDB extension is not installed'))
     })
@@ -612,27 +625,31 @@ describe('HealthChecker', () => {
     it('should handle database errors during validation', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       const sql = await mockPool.acquire()
-      
-      mockSql.setErrorCondition('SELECT extname, extversion FROM pg_extension WHERE extname IN (\'timescaledb\', \'postgis\', \'pg_stat_statements\')', 
-        new Error('Database connection failed'))
-      
+
+      mockSql.setErrorCondition(
+        "SELECT extname, extversion FROM pg_extension WHERE extname IN ('timescaledb', 'postgis', 'pg_stat_statements')",
+        new Error('Database connection failed'),
+      )
+
       await assertRejects(
         () => healthChecker.validateTimescaleDB(sql),
         SchemaError,
-        'Failed to validate TimescaleDB extension'
+        'Failed to validate TimescaleDB extension',
       )
     })
 
     it.skip('should check TimescaleDB settings and add warnings', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       const sql = await mockPool.acquire()
-      
+
       // Mock settings without TimescaleDB in shared_preload_libraries
-      mockSql.setMockResult('SELECT name, setting, unit, boot_val, reset_val FROM pg_settings WHERE name IN ($1)', 
-        [{ name: 'shared_preload_libraries', setting: 'pg_stat_statements' }])
-      
+      mockSql.setMockResult('SELECT name, setting, unit, boot_val, reset_val FROM pg_settings WHERE name IN ($1)', [{
+        name: 'shared_preload_libraries',
+        setting: 'pg_stat_statements',
+      }])
+
       const result = await healthChecker.validateTimescaleDB(sql)
-      
+
       assertEquals(result.isValid, true)
       assert(result.warnings.includes('TimescaleDB not found in shared_preload_libraries'))
     })
@@ -640,13 +657,15 @@ describe('HealthChecker', () => {
     it('should handle settings check errors gracefully', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       const sql = await mockPool.acquire()
-      
+
       // Mock settings query error (non-critical)
-      mockSql.setErrorCondition('SELECT name, setting, unit, boot_val, reset_val FROM pg_settings WHERE name IN ($1)', 
-        new Error('Settings access denied'))
-      
+      mockSql.setErrorCondition(
+        'SELECT name, setting, unit, boot_val, reset_val FROM pg_settings WHERE name IN ($1)',
+        new Error('Settings access denied'),
+      )
+
       const result = await healthChecker.validateTimescaleDB(sql)
-      
+
       // Should still succeed despite settings error
       assertEquals(result.isValid, true)
     })
@@ -659,9 +678,9 @@ describe('HealthChecker', () => {
     it('should validate schema successfully', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       const sql = await mockPool.acquire()
-      
+
       const result = await healthChecker.validateSchema(sql)
-      
+
       assertEquals(result.isValid, true)
       assertEquals(result.missingTables.length, 0)
       assertEquals(result.missingIndexes.length, 0)
@@ -671,60 +690,67 @@ describe('HealthChecker', () => {
     it('should detect missing tables', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       const sql = await mockPool.acquire()
-      
+
       // Mock missing tables
-      mockSql.setMockResult('SELECT tablename FROM pg_tables WHERE schemaname = \'public\' AND tablename = ANY($1)', 
-        [{ tablename: 'entities' }]) // Missing time_series_data
-      
+      mockSql.setMockResult("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = ANY($1)", [{
+        tablename: 'entities',
+      }]) // Missing time_series_data
+
       const result = await healthChecker.validateSchema(sql)
-      
+
       assertEquals(result.isValid, false)
       assert(result.missingTables.includes('time_series_data'))
-      assert(result.warnings.some(w => w.includes('Missing tables')))
+      assert(result.warnings.some((w) => w.includes('Missing tables')))
     })
 
     it('should detect non-hypertables', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       const sql = await mockPool.acquire()
-      
+
       // Mock tables exist but no hypertables
-      mockSql.setMockResult('SELECT hypertable_name FROM timescaledb_information.hypertables WHERE hypertable_name = ANY($1)', [])
-      
+      mockSql.setMockResult(
+        'SELECT hypertable_name FROM timescaledb_information.hypertables WHERE hypertable_name = ANY($1)',
+        [],
+      )
+
       const result = await healthChecker.validateSchema(sql)
-      
+
       assertEquals(result.isValid, false)
       assert(result.nonHypertables.includes('time_series_data'))
       assert(result.nonHypertables.includes('entities'))
-      assert(result.warnings.some(w => w.includes('Tables not converted to hypertables')))
+      assert(result.warnings.some((w) => w.includes('Tables not converted to hypertables')))
     })
 
     it('should detect missing indexes', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       const sql = await mockPool.acquire()
-      
+
       // Mock missing indexes
-      mockSql.setMockResult('SELECT indexname FROM pg_indexes WHERE schemaname = \'public\' AND indexname = ANY($1)', 
-        [{ indexname: 'ix_entity_time' }]) // Missing others
-      
+      mockSql.setMockResult("SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = ANY($1)", [{
+        indexname: 'ix_entity_time',
+      }]) // Missing others
+
       const result = await healthChecker.validateSchema(sql)
-      
+
       assertEquals(result.isValid, true) // Still valid with missing indexes
       assert(result.missingIndexes.includes('ix_time'))
       assert(result.missingIndexes.includes('ix_source'))
-      assert(result.warnings.some(w => w.includes('Missing indexes')))
+      assert(result.warnings.some((w) => w.includes('Missing indexes')))
     })
 
     it('should handle schema validation errors', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       const sql = await mockPool.acquire()
-      
-      mockSql.setErrorCondition('SELECT tablename FROM pg_tables WHERE schemaname = \'public\' AND tablename = ANY($1)', 
-        new Error('Table query failed'))
-      
+
+      mockSql.setErrorCondition(
+        "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = ANY($1)",
+        new Error('Table query failed'),
+      )
+
       await assertRejects(
         () => healthChecker.validateSchema(sql),
         SchemaError,
-        'Failed to validate database schema'
+        'Failed to validate database schema',
       )
     })
   })
@@ -736,15 +762,15 @@ describe('HealthChecker', () => {
     it('should check performance successfully', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       const sql = await mockPool.acquire()
-      
+
       mockPool.setStats({
         averageQueryTime: 20,
         errorCount: 0,
-        totalQueries: 100
+        totalQueries: 100,
       })
-      
+
       const result = await healthChecker.checkPerformance(sql)
-      
+
       assertEquals(result.isHealthy, true)
       assertEquals(result.issues.length, 0)
       assert(result.metrics.connectionTimeMs >= 0)
@@ -754,48 +780,48 @@ describe('HealthChecker', () => {
     it.skip('should detect slow query performance', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       const sql = await mockPool.acquire()
-      
+
       // Mock slow performance test query
       mockSql.setMockResult('SELECT 1 as performance_test', [{ performance_test: 1 }])
-      
+
       mockPool.setStats({
         averageQueryTime: 6000,
         errorCount: 0,
-        totalQueries: 100
+        totalQueries: 100,
       })
-      
+
       const result = await healthChecker.checkPerformance(sql)
-      
+
       assertEquals(result.isHealthy, false)
-      assert(result.issues.some(issue => issue.includes('Query time') && issue.includes('exceeds threshold')))
+      assert(result.issues.some((issue) => issue.includes('Query time') && issue.includes('exceeds threshold')))
     })
 
     it('should detect high error rate', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       const sql = await mockPool.acquire()
-      
+
       mockPool.setStats({
         averageQueryTime: 25,
         errorCount: 10,
-        totalQueries: 100 // 10% error rate > 5% threshold
+        totalQueries: 100, // 10% error rate > 5% threshold
       })
-      
+
       const result = await healthChecker.checkPerformance(sql)
-      
+
       assertEquals(result.isHealthy, false)
-      assert(result.issues.some(issue => issue.includes('Error rate') && issue.includes('exceeds threshold')))
+      assert(result.issues.some((issue) => issue.includes('Error rate') && issue.includes('exceeds threshold')))
     })
 
     it('should handle performance check errors', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       const sql = await mockPool.acquire()
-      
+
       mockSql.setErrorCondition('SELECT 1 as performance_test', new Error('Performance test failed'))
-      
+
       const result = await healthChecker.checkPerformance(sql)
-      
+
       assertEquals(result.isHealthy, false)
-      assert(result.issues.some(issue => issue.includes('Performance check failed')))
+      assert(result.issues.some((issue) => issue.includes('Performance check failed')))
       assertEquals(result.metrics.connectionTimeMs, -1)
       assertEquals(result.metrics.avgQueryTimeMs, -1)
     })
@@ -803,15 +829,15 @@ describe('HealthChecker', () => {
     it('should handle zero total queries (avoid division by zero)', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       const sql = await mockPool.acquire()
-      
+
       mockPool.setStats({
         averageQueryTime: 25,
         errorCount: 0,
-        totalQueries: 0
+        totalQueries: 0,
       })
-      
+
       const result = await healthChecker.checkPerformance(sql)
-      
+
       assertEquals(result.isHealthy, true) // 0% error rate
       assertEquals(result.issues.length, 0)
     })
@@ -826,26 +852,26 @@ describe('HealthChecker', () => {
         let alertTriggered = false
         let alertIsHealthy: boolean | undefined
         let alertResult: any
-        
+
         const alertConfig: MockAlertConfig = {
           enabled: true,
           onHealthChange: (isHealthy, result) => {
             alertTriggered = true
             alertIsHealthy = isHealthy
             alertResult = result
-          }
+          },
         }
-        
+
         const healthChecker = new HealthChecker(mockPool as any, logger, {}, alertConfig as any)
-        
+
         // Start healthy
         mockPool.setHealthCheckResult(true)
         await healthChecker.performHealthCheck()
-        
+
         // Change to unhealthy
         mockPool.setHealthCheckResult(false)
         await healthChecker.performHealthCheck()
-        
+
         assert(alertTriggered)
         assertEquals(alertIsHealthy, false)
         assertEquals(alertResult.isHealthy, false)
@@ -853,21 +879,21 @@ describe('HealthChecker', () => {
 
       it.skip('should not trigger alert when health does not change', async () => {
         let alertTriggered = false
-        
+
         const alertConfig: MockAlertConfig = {
           enabled: true,
           onHealthChange: () => {
             alertTriggered = true
-          }
+          },
         }
-        
+
         const healthChecker = new HealthChecker(mockPool as any, logger, {}, alertConfig as any)
-        
+
         // Both checks healthy
         mockPool.setHealthCheckResult(true)
         await healthChecker.performHealthCheck()
         await healthChecker.performHealthCheck()
-        
+
         assert(!alertTriggered)
       })
     })
@@ -875,19 +901,19 @@ describe('HealthChecker', () => {
     describe('Error Alerts', () => {
       it('should trigger error alerts for health check errors', async () => {
         const errors: Array<{ error: Error; context: string }> = []
-        
+
         const alertConfig: MockAlertConfig = {
           enabled: true,
           onError: (error, context) => {
             errors.push({ error, context })
-          }
+          },
         }
-        
+
         const healthChecker = new HealthChecker(mockPool as any, logger, {}, alertConfig as any)
         mockPool.setHealthCheckResult(false)
-        
+
         await healthChecker.performHealthCheck()
-        
+
         assert(errors.length > 0)
         assert(errors[0])
         assertEquals(errors[0].context, 'health_check')
@@ -898,22 +924,25 @@ describe('HealthChecker', () => {
     describe('Warning Alerts', () => {
       it.skip('should trigger warning alerts for health check warnings', async () => {
         const warnings: Array<{ warning: string; context: string }> = []
-        
+
         const alertConfig: MockAlertConfig = {
           enabled: true,
           onWarning: (warning, context) => {
             warnings.push({ warning, context })
-          }
+          },
         }
-        
+
         const healthChecker = new HealthChecker(mockPool as any, logger, {}, alertConfig as any)
         mockPool.setHealthCheckResult(true)
-        
+
         // Mock missing indexes to generate warnings
-        mockSql.setMockResult('SELECT indexname FROM pg_indexes WHERE schemaname = \'public\' AND indexname = ANY($1)', [])
-        
+        mockSql.setMockResult(
+          "SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = ANY($1)",
+          [],
+        )
+
         await healthChecker.performHealthCheck()
-        
+
         assert(warnings.length > 0)
         assert(warnings[0])
         assertEquals(warnings[0].context, 'health_check')
@@ -924,22 +953,22 @@ describe('HealthChecker', () => {
     describe('Disabled Alerts', () => {
       it('should not trigger alerts when disabled', async () => {
         let alertTriggered = false
-        
+
         const alertConfig: MockAlertConfig = {
           enabled: false,
           onHealthChange: () => {
             alertTriggered = true
-          }
+          },
         }
-        
+
         const healthChecker = new HealthChecker(mockPool as any, logger, {}, alertConfig as any)
-        
+
         mockPool.setHealthCheckResult(true)
         await healthChecker.performHealthCheck()
-        
+
         mockPool.setHealthCheckResult(false)
         await healthChecker.performHealthCheck()
-        
+
         assert(!alertTriggered)
       })
     })
@@ -952,18 +981,18 @@ describe('HealthChecker', () => {
     it.skip('should calculate perfect score for all checks passing', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       mockPool.setHealthCheckResult(true)
-      
+
       const result = await healthChecker.performHealthCheck()
-      
+
       assertEquals(result.score, 100)
     })
 
     it('should deduct points for failing checks', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       mockPool.setHealthCheckResult(false) // Connection fails
-      
+
       const result = await healthChecker.performHealthCheck()
-      
+
       assert(result.score < 100)
       assert(result.score >= 0)
     })
@@ -971,12 +1000,12 @@ describe('HealthChecker', () => {
     it('should deduct points for errors and warnings', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       mockPool.setHealthCheckResult(true)
-      
+
       // Mock missing indexes to generate warnings
-      mockSql.setMockResult('SELECT indexname FROM pg_indexes WHERE schemaname = \'public\' AND indexname = ANY($1)', [])
-      
+      mockSql.setMockResult("SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = ANY($1)", [])
+
       const result = await healthChecker.performHealthCheck()
-      
+
       assert(result.score < 100) // Should be reduced due to warnings
       assert(result.score > 0)
     })
@@ -984,26 +1013,30 @@ describe('HealthChecker', () => {
     it('should have minimum score of 0', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       mockPool.setHealthCheckResult(false)
-      
+
       // Mock multiple errors
-      mockSql.setMockResult('SELECT extname, extversion FROM pg_extension WHERE extname IN (\'timescaledb\', \'postgis\', \'pg_stat_statements\')', [])
-      mockSql.setMockResult('SELECT tablename FROM pg_tables WHERE schemaname = \'public\' AND tablename = ANY($1)', [])
-      
+      mockSql.setMockResult(
+        "SELECT extname, extversion FROM pg_extension WHERE extname IN ('timescaledb', 'postgis', 'pg_stat_statements')",
+        [],
+      )
+      mockSql.setMockResult("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = ANY($1)", [])
+
       const result = await healthChecker.performHealthCheck()
-      
+
       assertEquals(result.score, 0)
     })
 
     it('should consider health threshold for isHealthy determination', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       mockPool.setHealthCheckResult(true)
-      
+
       // Mock some warnings to reduce score but keep above 70
-      mockSql.setMockResult('SELECT indexname FROM pg_indexes WHERE schemaname = \'public\' AND indexname = ANY($1)', 
-        [{ indexname: 'ix_entity_time' }]) // Missing some indexes
-      
+      mockSql.setMockResult("SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = ANY($1)", [{
+        indexname: 'ix_entity_time',
+      }]) // Missing some indexes
+
       const result = await healthChecker.performHealthCheck()
-      
+
       if (result.score >= 70 && result.errors.length === 0) {
         assertEquals(result.isHealthy, true)
       } else {
@@ -1019,32 +1052,32 @@ describe('HealthChecker', () => {
     it('should create HealthChecker instance with all parameters', () => {
       const clientOptions: ClientOptions = TEST_CLIENT_OPTIONS.test!
       const alertConfig: MockAlertConfig = { enabled: true }
-      
+
       const healthChecker = createHealthChecker(
         mockPool as any,
         logger,
         clientOptions,
-        alertConfig as any
+        alertConfig as any,
       )
-      
+
       assertInstanceOf(healthChecker, HealthChecker)
     })
 
     it('should create HealthChecker instance with minimal parameters', () => {
       const healthChecker = createHealthChecker(mockPool as any)
-      
+
       assertInstanceOf(healthChecker, HealthChecker)
     })
 
     it('should create HealthChecker with default client options', () => {
       const healthChecker = createHealthChecker(mockPool as any, logger)
-      
+
       assertInstanceOf(healthChecker, HealthChecker)
     })
 
     it('should create HealthChecker with default alert config', () => {
       const healthChecker = createHealthChecker(mockPool as any, logger, {})
-      
+
       assertInstanceOf(healthChecker, HealthChecker)
     })
   })
@@ -1055,29 +1088,29 @@ describe('HealthChecker', () => {
   describe('Error Scenarios and Edge Cases', () => {
     it('should handle non-Error objects in catch blocks', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
-      
+
       mockSql.setErrorCondition('SELECT 1 as performance_test', 'String error' as any)
-      
+
       const result = await healthChecker.checkPerformance(await mockPool.acquire())
-      
+
       assertEquals(result.isHealthy, false)
-      assert(result.issues.some(issue => issue.includes('String error')))
+      assert(result.issues.some((issue) => issue.includes('String error')))
     })
 
     it('should handle connection acquire failure in health check', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
-      
+
       // Mock pool acquire failure
       const originalAcquire = mockPool.acquire
       mockPool.acquire = () => Promise.reject(new Error('Pool acquire failed'))
-      
+
       try {
         await healthChecker.performHealthCheck()
       } catch (error) {
         assert(error instanceof Error)
         assert(error.message.includes('Pool acquire failed'))
       }
-      
+
       // Restore original method
       mockPool.acquire = originalAcquire
     })
@@ -1085,13 +1118,15 @@ describe('HealthChecker', () => {
     it('should handle missing query result properties gracefully', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       const sql = await mockPool.acquire()
-      
+
       // Mock incomplete extension result
-      mockSql.setMockResult('SELECT extname, extversion FROM pg_extension WHERE extname IN (\'timescaledb\', \'postgis\', \'pg_stat_statements\')', 
-        [{ extname: 'timescaledb' }]) // Missing extversion
-      
+      mockSql.setMockResult(
+        "SELECT extname, extversion FROM pg_extension WHERE extname IN ('timescaledb', 'postgis', 'pg_stat_statements')",
+        [{ extname: 'timescaledb' }],
+      ) // Missing extversion
+
       const result = await healthChecker.validateTimescaleDB(sql)
-      
+
       assertEquals(result.isValid, true)
       assert(result.extensions.includes('timescaledb@undefined'))
     })
@@ -1099,11 +1134,11 @@ describe('HealthChecker', () => {
     it('should handle empty TimescaleDB version result', async () => {
       const healthChecker = new HealthChecker(mockPool as any, logger)
       const sql = await mockPool.acquire()
-      
+
       mockSql.setMockResult('SELECT timescaledb_version()', [])
-      
+
       const result = await healthChecker.validateTimescaleDB(sql)
-      
+
       assertEquals(result.isValid, true)
       assertEquals(result.version, undefined)
     })
@@ -1116,12 +1151,14 @@ describe('HealthChecker', () => {
     describe('createErrorResult', () => {
       it('should create error result with Error object', async () => {
         const healthChecker = new HealthChecker(mockPool as any, logger)
-        
+
         // Force an error to trigger createErrorResult
         mockPool.setHealthCheckResult(true)
-        mockSql.setErrorCondition('SELECT extname, extversion FROM pg_extension WHERE extname IN (\'timescaledb\', \'postgis\', \'pg_stat_statements\')', 
-          new Error('Test error'))
-        
+        mockSql.setErrorCondition(
+          "SELECT extname, extversion FROM pg_extension WHERE extname IN ('timescaledb', 'postgis', 'pg_stat_statements')",
+          new Error('Test error'),
+        )
+
         try {
           await healthChecker.performHealthCheck()
         } catch (_error) {
@@ -1136,11 +1173,13 @@ describe('HealthChecker', () => {
 
       it('should create error result with non-Error object', async () => {
         const healthChecker = new HealthChecker(mockPool as any, logger)
-        
+
         mockPool.setHealthCheckResult(true)
-        mockSql.setErrorCondition('SELECT extname, extversion FROM pg_extension WHERE extname IN (\'timescaledb\', \'postgis\', \'pg_stat_statements\')', 
-          'String error' as any)
-        
+        mockSql.setErrorCondition(
+          "SELECT extname, extversion FROM pg_extension WHERE extname IN ('timescaledb', 'postgis', 'pg_stat_statements')",
+          'String error' as any,
+        )
+
         try {
           await healthChecker.performHealthCheck()
         } catch (_error) {
@@ -1156,9 +1195,9 @@ describe('HealthChecker', () => {
     describe('buildHealthCheckConfig and buildPerformanceThresholds', () => {
       it('should build config with custom queryTimeout', () => {
         const clientOptions: ClientOptions = {
-          queryTimeout: 20000
+          queryTimeout: 20000,
         }
-        
+
         const healthChecker = new HealthChecker(mockPool as any, logger, clientOptions)
         assertInstanceOf(healthChecker, HealthChecker)
       })

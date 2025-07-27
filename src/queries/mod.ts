@@ -1,49 +1,41 @@
 /**
  * Query operations module exports
- * 
+ *
  * Provides all query operation types and functions for time-series data
  * manipulation with optimized batch processing and validation.
  */
 
 // Export all option types
 export type { AggregationOptions } from './aggregate.ts'
-export type { InsertOptions } from './insert.ts' 
+export type { InsertOptions } from './insert.ts'
 export type { SelectOptions } from './select.ts'
 
 // Export result types
-export type {
-  TimeBucketResult,
-  MultiValueAggregationResult,
-  WeightedAverageResult,
-  DeltaResult
-} from './aggregate.ts'
+export type { DeltaResult, MultiValueAggregationResult, TimeBucketResult, WeightedAverageResult } from './aggregate.ts'
 
 // Export functions (for advanced use cases)
 export {
-  getTimeBucketAggregation,
-  getMultiValueAggregation,
-  getWeightedAverage,
-  getValueDelta,
-  getVariability,
   getContinuousAggregate,
   getGapFilledAggregation,
   getMovingAverages,
-  getMultiEntityAggregation
+  getMultiEntityAggregation,
+  getMultiValueAggregation,
+  getTimeBucketAggregation,
+  getValueDelta,
+  getVariability,
+  getWeightedAverage,
 } from './aggregate.ts'
 
-export {
-  insertRecord,
-  insertManyRecords
-} from './insert.ts'
+export { insertManyRecords, insertRecord } from './insert.ts'
 
 export {
-  getRecords,
-  getMultiEntityRecords,
-  getLatestRecord,
-  getMultiEntityLatest,
-  getRecordsByEntityType,
-  getRecordsStream,
   getAvailableEntities,
   getEntitiesByType,
-  searchRecords
+  getLatestRecord,
+  getMultiEntityLatest,
+  getMultiEntityRecords,
+  getRecords,
+  getRecordsByEntityType,
+  getRecordsStream,
+  searchRecords,
 } from './select.ts'

@@ -7,22 +7,16 @@
 
 import type { SqlInstance } from './types/internal.ts'
 import type { DatabaseLayer } from './database/client.ts'
-import type {
-  BatchResult,
-  HealthCheckResult,
-  SchemaInfo,
-  TimeRange,
-  TimeSeriesRecord,
-} from './types/interfaces.ts'
+import type { BatchResult, HealthCheckResult, SchemaInfo, TimeRange, TimeSeriesRecord } from './types/interfaces.ts'
 import type { ClientOptions } from './types/config.ts'
 import type { Logger } from './types/logging.ts'
 import { BatchError, ConnectionError, QueryError, ValidationError } from './types/errors.ts'
 import { resolveLoggerFromOptions } from './logging/resolver.ts'
 
 // Import query operations
-import { insertRecord, insertManyRecords, type InsertOptions } from './queries/insert.ts'
-import { getRecords, getLatestRecord, getMultiEntityLatest, type SelectOptions } from './queries/select.ts'
-import { getTimeBucketAggregation, getMultiValueAggregation, type AggregationOptions } from './queries/aggregate.ts'
+import { insertManyRecords, type InsertOptions, insertRecord } from './queries/insert.ts'
+import { getLatestRecord, getMultiEntityLatest, getRecords, type SelectOptions } from './queries/select.ts'
+import { type AggregationOptions, getMultiValueAggregation, getTimeBucketAggregation } from './queries/aggregate.ts'
 
 /**
  * Database query result interfaces for type safety
@@ -182,7 +176,7 @@ export class TimescaleClient {
       this.logger?.debug('Inserted time-series record', {
         entity_id: record.entity_id,
         value: record.value,
-        time: record.time
+        time: record.time,
       })
     } catch (error) {
       this.handleError(error)
@@ -283,8 +277,8 @@ export class TimescaleClient {
 
       // Transform query layer result to match current API contract
       const valueMap: Record<string, number | null> = {}
-      entityIds.forEach(id => valueMap[id] = null)
-      result.records.forEach(record => {
+      entityIds.forEach((id) => valueMap[id] = null)
+      result.records.forEach((record) => {
         valueMap[record.entity_id] = record.value
       })
 
@@ -310,15 +304,17 @@ export class TimescaleClient {
     range: TimeRange,
     // deno-lint-ignore default-param-last
     bucketInterval: string = '1h',
-    options?: AggregationOptions
-  ): Promise<Array<{
-    bucket: Date
-    count: number
-    avg: number | null
-    min: number | null
-    max: number | null
-    sum: number | null
-  }>> {
+    options?: AggregationOptions,
+  ): Promise<
+    Array<{
+      bucket: Date
+      count: number
+      avg: number | null
+      min: number | null
+      max: number | null
+      sum: number | null
+    }>
+  > {
     this.validateNotClosed()
 
     try {
@@ -359,15 +355,17 @@ export class TimescaleClient {
     range: TimeRange,
     // deno-lint-ignore default-param-last
     bucketInterval: string = '1h',
-    options?: AggregationOptions
-  ): Promise<Array<{
-    bucket: Date
-    count: number
-    value_stats: { avg: number | null; min: number | null; max: number | null; sum: number | null }
-    value2_stats: { avg: number | null; min: number | null; max: number | null; sum: number | null }
-    value3_stats: { avg: number | null; min: number | null; max: number | null; sum: number | null }
-    value4_stats: { avg: number | null; min: number | null; max: number | null; sum: number | null }
-  }>> {
+    options?: AggregationOptions,
+  ): Promise<
+    Array<{
+      bucket: Date
+      count: number
+      value_stats: { avg: number | null; min: number | null; max: number | null; sum: number | null }
+      value2_stats: { avg: number | null; min: number | null; max: number | null; sum: number | null }
+      value3_stats: { avg: number | null; min: number | null; max: number | null; sum: number | null }
+      value4_stats: { avg: number | null; min: number | null; max: number | null; sum: number | null }
+    }>
+  > {
     this.validateNotClosed()
 
     try {
@@ -423,7 +421,11 @@ export class TimescaleClient {
   /**
    * Stream time-series records for large datasets
    */
-  getRecordsStream(entityId: string, range: TimeRange, options?: { batchSize?: number }): AsyncIterable<TimeSeriesRecord[]> {
+  getRecordsStream(
+    entityId: string,
+    range: TimeRange,
+    options?: { batchSize?: number },
+  ): AsyncIterable<TimeSeriesRecord[]> {
     this.validateNotClosed()
 
     try {
@@ -836,7 +838,6 @@ export class TimescaleClient {
       ...options,
     }
   }
-
 
   /**
    * Handle errors by calling appropriate error handlers and logging

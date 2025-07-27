@@ -43,86 +43,96 @@ Example:
 
 // Good
 
-/** Default timeout for requests  */
+/** Default timeout for requests */
 export const DEFAULT_TIMEOUT = 3000;
 
 /**
- * Function to add two numbers
- * @param a First number
- * @param b Second number
- * @returns Sum of a and b
- */
-const doSomething = (a: number, b: number): number => a + b;
+
+- Function to add two numbers
+- @param a First number
+- @param b Second number
+- @returns Sum of a and b
+  */
+  const doSomething = (a: number, b: number): number => a + b;
 
 /**
- * Map over an array and double each value
- */
-const items = [1, 2, 3].map(x => x * 2);
+
+- Map over an array and double each value
+  */
+  const items = [1, 2, 3].map(x => x * 2);
 
 /**
- * Class representing a user
- * @class MyClass
- * @param name Name of the user
- * @example
- * ```typescript
- * const user = new MyClass('Alice');
- * ```
- */
+
+- Class representing a user
+- @class MyClass
+- @param name Name of the user
+- @example
+- ```typescript
+  ```
+- const user = new MyClass('Alice');
+- ```
+  ```
+
+*/
 export class MyClass {
-  constructor(private readonly name: string) {}
+constructor(private readonly name: string) {}
 
-  /**
-   * Get the name of the user
-   * @returns User's name
-   */
+/**
+
+- Get the name of the user
+- @returns User's name
+  */
   getName(): string {
-    return this.name;
+  return this.name;
   }
 
-  /**
-   * Set the name of the user
-   * @param name New name for the user
-   */
+/**
+
+- Set the name of the user
+- @param name New name for the user
+  */
   setName(name: string): void {
-    this.name = name;
+  this.name = name;
   }
 
-  /**
-   * Create a new instance of MyClass
-   * @param name Name of the user
-   * @returns New instance of MyClass
-   */
+/**
+
+- Create a new instance of MyClass
+- @param name Name of the user
+- @returns New instance of MyClass
+  */
   static createInstance(name: string): MyClass {
-    return new MyClass(name);
+  return new MyClass(name);
   }
-}
+  }
 
-/* User type definition */
+/* User type definition _/
 type User = {
-  /* Unique identifier for the user */
-  id: string;
-  /* Name of the user */
-  name: string;
+/_ Unique identifier for the user _/
+id: string;
+/_ Name of the user */
+name: string;
 };
 
 /**
- * Function to greet a user
- * @param user User object
- * @returns Greeting message
- */
-const myFunction = (user: User): string => {
+
+- Function to greet a user
+- @param user User object
+- @returns Greeting message
+  */
+  const myFunction = (user: User): string => {
   return `Hello, ${user.name}`;
-};
+  };
 
 // Bad because it uses "Type" in the name when it is a type/interface by keyword already and no definition
 type MyType = {
-  id: string;
-  value: number;
+id: string;
+value: number;
 };
 
 // Bad because it has no definition and uses slow-types
 const myFunction = (user: User) => {
-  return { id: user.id, value: 42 };
+return { id: user.id, value: 42 };
 };
 Use Named Parameters in TypeScript (Object Destructuring)
 
@@ -133,21 +143,21 @@ Example:
 
 // Good
 type MyOptions = {
-   foo: string;
-   bar?: number; // optional
-   baz?: boolean; // optional
- };
+foo: string;
+bar?: number; // optional
+baz?: boolean; // optional
+};
 
- function doSomething({ foo, bar = 42, baz = false }: MyOptions) {
-   // ...
- }
+function doSomething({ foo, bar = 42, baz = false }: MyOptions) {
+// ...
+}
 
- // Usage
- doSomething({ foo: 'hello' });
+// Usage
+doSomething({ foo: 'hello' });
 
- // Bad
- function foo(a, b, c, d, e) { ... }
- foo(1, 2, undefined, 4, false);
+// Bad
+function foo(a, b, c, d, e) { ... }
+foo(1, 2, undefined, 4, false);
 Project Structure & Files
 
 Respect and update deno.json for config, not package.json.

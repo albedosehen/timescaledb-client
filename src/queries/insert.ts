@@ -56,7 +56,9 @@ export async function insertRecord(
     if (opts.upsert) {
       await sql`
         INSERT INTO time_series_data (time, entity_id, value, value2, value3, value4, metadata)
-        VALUES (${record.time}, ${record.entity_id}, ${record.value}, ${record.value2 || null}, ${record.value3 || null}, ${record.value4 || null}, ${metadataJson})
+        VALUES (${record.time}, ${record.entity_id}, ${record.value}, ${record.value2 || null}, ${
+        record.value3 || null
+      }, ${record.value4 || null}, ${metadataJson})
         ON CONFLICT (entity_id, time)
         DO UPDATE SET
           value = EXCLUDED.value,
@@ -69,7 +71,9 @@ export async function insertRecord(
     } else {
       await sql`
         INSERT INTO time_series_data (time, entity_id, value, value2, value3, value4, metadata)
-        VALUES (${record.time}, ${record.entity_id}, ${record.value}, ${record.value2 || null}, ${record.value3 || null}, ${record.value4 || null}, ${metadataJson})
+        VALUES (${record.time}, ${record.entity_id}, ${record.value}, ${record.value2 || null}, ${
+        record.value3 || null
+      }, ${record.value4 || null}, ${metadataJson})
       `
     }
   } catch (error) {
@@ -183,7 +187,9 @@ async function insertRecordBatch(
 
   if (upsert) {
     await sql`
-      INSERT INTO time_series_data ${sql(recordData, 'time', 'entity_id', 'value', 'value2', 'value3', 'value4', 'metadata')}
+      INSERT INTO time_series_data ${
+      sql(recordData, 'time', 'entity_id', 'value', 'value2', 'value3', 'value4', 'metadata')
+    }
       ON CONFLICT (entity_id, time)
       DO UPDATE SET
         value = EXCLUDED.value,
@@ -195,7 +201,9 @@ async function insertRecordBatch(
     `
   } else {
     await sql`
-      INSERT INTO time_series_data ${sql(recordData, 'time', 'entity_id', 'value', 'value2', 'value3', 'value4', 'metadata')}
+      INSERT INTO time_series_data ${
+      sql(recordData, 'time', 'entity_id', 'value', 'value2', 'value3', 'value4', 'metadata')
+    }
     `
   }
 }

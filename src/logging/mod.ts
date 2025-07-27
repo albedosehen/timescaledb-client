@@ -25,31 +25,31 @@
 
 // Core types and interfaces
 export type {
+  ConsoleLoggerConfig,
+  ConsoleOptions,
+  CustomLoggerConfig,
   Logger,
   LoggerConfig,
   LoggerFactory as ILoggerFactory,
-  StoatOptions,
-  ConsoleOptions,
   StoatLoggerConfig,
-  ConsoleLoggerConfig,
-  CustomLoggerConfig
+  StoatOptions,
 } from '../types/logging.ts'
 
 export { LoggerAdapter } from '../types/logging.ts'
 
 // Adapter implementations
 export { ConsoleLoggerAdapter } from './adapters/console.ts'
-export { StoatLoggerAdapter, createStoatTransports } from './adapters/stoat.ts'
+export { createStoatTransports, StoatLoggerAdapter } from './adapters/stoat.ts'
 
 // Factory and creation functions
-export { LoggerFactory, loggerFactory, createLogger, createAutoLogger } from './factory.ts'
+export { createAutoLogger, createLogger, LoggerFactory, loggerFactory } from './factory.ts'
 
 // Configuration presets
-export { LOGGER_PRESETS, getLoggerPreset, getEnvironmentPreset, createContextualPreset } from './presets.ts'
+export { createContextualPreset, getEnvironmentPreset, getLoggerPreset, LOGGER_PRESETS } from './presets.ts'
 
 // Import required types and functions for local use
 import type { Logger, LoggerConfig } from '../types/logging.ts'
-import { createLogger, createAutoLogger } from './factory.ts'
+import { createAutoLogger, createLogger } from './factory.ts'
 
 /**
  * Convenience function to create logger with environment-based auto-detection
@@ -68,7 +68,7 @@ export function createDefaultLogger(context?: Record<string, unknown>): Logger {
  */
 export function createLoggerFromEnv(context?: Record<string, unknown>): Logger {
   const configEnv = Deno.env.get('LOGGER_CONFIG')
-  
+
   if (configEnv) {
     try {
       const config = JSON.parse(configEnv) as LoggerConfig
@@ -77,7 +77,7 @@ export function createLoggerFromEnv(context?: Record<string, unknown>): Logger {
       console.warn(`Failed to parse LOGGER_CONFIG environment variable: ${error}`)
     }
   }
-  
+
   return createAutoLogger(context)
 }
 
@@ -90,7 +90,7 @@ export function createLoggerFromEnv(context?: Record<string, unknown>): Logger {
  */
 export function createChildLogger(
   parentLogger: Logger,
-  context: Record<string, unknown>
+  context: Record<string, unknown>,
 ): Logger {
   return parentLogger.child(context)
 }

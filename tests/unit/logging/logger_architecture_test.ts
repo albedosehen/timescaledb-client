@@ -7,12 +7,12 @@
 
 import { assertEquals, assertExists, assertInstanceOf } from '@std/assert'
 
-import { 
-  createLogger, 
-  createAutoLogger, 
-  LOGGER_PRESETS,
+import {
   ConsoleLoggerAdapter,
-  type Logger 
+  createAutoLogger,
+  createLogger,
+  type Logger,
+  LOGGER_PRESETS,
 } from '../../../src/logging/mod.ts'
 import { resolveLoggerFromOptions } from '../../../src/logging/resolver.ts'
 import type { ClientOptions } from '../../../src/types/config.ts'
@@ -21,9 +21,9 @@ Deno.test('Logger Factory - should create console logger with configuration', ()
   const logger = createLogger({
     type: 'console',
     options: { level: 'debug', prettyPrint: true },
-    context: { service: 'test' }
+    context: { service: 'test' },
   })
-  
+
   assertExists(logger)
   assertInstanceOf(logger, ConsoleLoggerAdapter)
   assertEquals(typeof logger.debug, 'function')
@@ -49,9 +49,9 @@ Deno.test('Child Logger Support - should create child logger with inherited cont
   const parentLogger = createLogger({
     type: 'console',
     options: { level: 'debug', prettyPrint: false },
-    context: { service: 'parent', version: '1.0.0' }
+    context: { service: 'parent', version: '1.0.0' },
   })
-  
+
   const childLogger = parentLogger.child({ component: 'child', operation: 'test' })
 
   assertExists(childLogger)
@@ -70,9 +70,9 @@ Deno.test('Child Logger Support - should create child logger with inherited cont
 Deno.test('Child Logger Support - should support nested child loggers', () => {
   const root = createLogger({
     type: 'console',
-    context: { service: 'app' }
+    context: { service: 'app' },
   })
-  
+
   const level1 = root.child({ module: 'database' })
   const level2 = level1.child({ operation: 'query' })
   const level3 = level2.child({ queryId: '123' })
@@ -91,11 +91,11 @@ Deno.test('Backward Compatibility - should resolve logger from legacy ClientOpti
     info: () => {},
     warn: () => {},
     error: () => {},
-    child: () => mockLegacyLogger
+    child: () => mockLegacyLogger,
   }
 
   const options: ClientOptions = {
-    logger: mockLegacyLogger
+    logger: mockLegacyLogger,
   }
 
   const resolvedLogger = resolveLoggerFromOptions(options)
@@ -109,8 +109,8 @@ Deno.test('Backward Compatibility - should resolve logger from new loggerConfig'
     loggerConfig: {
       type: 'console',
       options: { level: 'info' },
-      context: { app: 'test' }
-    }
+      context: { app: 'test' },
+    },
   }
 
   const resolvedLogger = resolveLoggerFromOptions(options)
@@ -124,15 +124,15 @@ Deno.test('Backward Compatibility - should prioritize loggerConfig over legacy l
     info: () => {},
     warn: () => {},
     error: () => {},
-    child: () => mockLegacyLogger
+    child: () => mockLegacyLogger,
   }
 
   const options: ClientOptions = {
     logger: mockLegacyLogger,
     loggerConfig: {
       type: 'console',
-      options: { level: 'debug' }
-    }
+      options: { level: 'debug' },
+    },
   }
 
   const resolvedLogger = resolveLoggerFromOptions(options)
@@ -165,9 +165,9 @@ Deno.test('Console Logger Adapter - should handle different log levels', () => {
   const logger = new ConsoleLoggerAdapter({
     level: 'debug',
     prettyPrint: false,
-    colors: false
+    colors: false,
   })
-  
+
   // These should not throw
   logger.debug('Debug message', { meta: 'data' })
   logger.info('Info message')
@@ -178,7 +178,7 @@ Deno.test('Console Logger Adapter - should handle different log levels', () => {
 Deno.test('Console Logger Adapter - should respect log level filtering', () => {
   const logger = new ConsoleLoggerAdapter({
     level: 'warn', // Only warn and error should log
-    prettyPrint: false
+    prettyPrint: false,
   })
 
   // These should work (though we can't easily test console output)

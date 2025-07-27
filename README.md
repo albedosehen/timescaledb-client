@@ -44,9 +44,9 @@ const client = await ClientFactory.fromConnectionString(
 await client.insertRecord({
   entity_id: 'sensor_001',
   time: new Date().toISOString(),
-  value: 23.5,       // Temperature
-  value2: 65.2,      // Humidity
-  metadata: { location: 'warehouse_a', floor: 2 }
+  value: 23.5, // Temperature
+  value2: 65.2, // Humidity
+  metadata: { location: 'warehouse_a', floor: 2 },
 })
 
 // Query recent sensor readings
@@ -85,27 +85,27 @@ deno add jsr:@timescale/client
 
 ### Data Insertion
 
-| Operation | Description | Example |
-|-----------|-------------|---------|
-| **Single Insert** | Insert individual time-series records | [`insertRecord()`](./src/client.ts) |
-| **Batch Insert** | Efficient bulk insertion | [`insertManyRecords()`](./src/client.ts) |
-| **Streaming Insert** | Memory-efficient large dataset insertion | [`insertStream()`](./src/client.ts) |
+| Operation            | Description                              | Example                                  |
+| -------------------- | ---------------------------------------- | ---------------------------------------- |
+| **Single Insert**    | Insert individual time-series records    | [`insertRecord()`](./src/client.ts)      |
+| **Batch Insert**     | Efficient bulk insertion                 | [`insertManyRecords()`](./src/client.ts) |
+| **Streaming Insert** | Memory-efficient large dataset insertion | [`insertStream()`](./src/client.ts)      |
 
 ### Data Querying
 
-| Operation | Description | Example |
-|-----------|-------------|---------|
-| **Time Range Queries** | Retrieve data within time bounds | [`getRecords()`](./src/client.ts) |
-| **Latest Values** | Get most recent data points | [`getLatestValues()`](./src/client.ts) |
-| **Multi-Entity Queries** | Query across multiple entities | [`getMultiEntityData()`](./src/client.ts) |
+| Operation                | Description                      | Example                                   |
+| ------------------------ | -------------------------------- | ----------------------------------------- |
+| **Time Range Queries**   | Retrieve data within time bounds | [`getRecords()`](./src/client.ts)         |
+| **Latest Values**        | Get most recent data points      | [`getLatestValues()`](./src/client.ts)    |
+| **Multi-Entity Queries** | Query across multiple entities   | [`getMultiEntityData()`](./src/client.ts) |
 
 ### Aggregation Operations
 
-| Operation | Description | Example |
-|-----------|-------------|---------|
-| **Time Bucketing** | Group data by time intervals | [`getTimeBuckets()`](./src/client.ts) |
-| **Statistical Aggregates** | Calculate min, max, avg, sum, count | [`getAggregate()`](./src/client.ts) |
-| **Custom Aggregations** | Execute custom aggregate queries | [`executeAggregate()`](./src/client.ts) |
+| Operation                  | Description                         | Example                                 |
+| -------------------------- | ----------------------------------- | --------------------------------------- |
+| **Time Bucketing**         | Group data by time intervals        | [`getTimeBuckets()`](./src/client.ts)   |
+| **Statistical Aggregates** | Calculate min, max, avg, sum, count | [`getAggregate()`](./src/client.ts)     |
+| **Custom Aggregations**    | Execute custom aggregate queries    | [`executeAggregate()`](./src/client.ts) |
 
 ## Use Cases
 
@@ -117,23 +117,23 @@ await client.insertManyRecords([
   {
     entity_id: 'temp_sensor_01',
     time: '2024-01-15T10:00:00Z',
-    value: 22.5,      // Temperature in Celsius
-    value2: 60.3,     // Humidity percentage
-    metadata: { building: 'warehouse_a', room: 'server_room' }
+    value: 22.5, // Temperature in Celsius
+    value2: 60.3, // Humidity percentage
+    metadata: { building: 'warehouse_a', room: 'server_room' },
   },
   {
     entity_id: 'temp_sensor_02',
     time: '2024-01-15T10:00:00Z',
     value: 18.9,
     value2: 45.7,
-    metadata: { building: 'warehouse_b', room: 'storage' }
-  }
+    metadata: { building: 'warehouse_b', room: 'storage' },
+  },
 ])
 
 // Get hourly averages for the last week
 const hourlyAvgs = await client.getTimeBuckets('temp_sensor_01', '1 hour', {
   from: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-  to: new Date()
+  to: new Date(),
 })
 ```
 
@@ -144,15 +144,15 @@ const hourlyAvgs = await client.getTimeBuckets('temp_sensor_01', '1 hour', {
 await client.insertRecord({
   entity_id: 'server_prod_01',
   time: new Date().toISOString(),
-  value: 75.2,      // CPU usage percentage
-  value2: 8.1,      // Memory usage in GB
-  value3: 1024.5,   // Network throughput in MB/s
-  value4: 0.8,      // Disk I/O utilization
+  value: 75.2, // CPU usage percentage
+  value2: 8.1, // Memory usage in GB
+  value3: 1024.5, // Network throughput in MB/s
+  value4: 0.8, // Disk I/O utilization
   metadata: {
     datacenter: 'us-east-1',
     instance_type: 'c5.large',
-    availability_zone: 'us-east-1a'
-  }
+    availability_zone: 'us-east-1a',
+  },
 })
 
 // Find servers with high CPU usage in the last hour
@@ -174,16 +174,16 @@ const highCpuServers = await client.query(`
 await client.insertRecord({
   entity_id: 'api_gateway',
   time: new Date().toISOString(),
-  value: 145.2,     // Response time in ms
-  value2: 1,        // Success count (1 for success, 0 for error)
-  value3: 502.1,    // Request size in bytes
-  value4: 1024.8,   // Response size in bytes
+  value: 145.2, // Response time in ms
+  value2: 1, // Success count (1 for success, 0 for error)
+  value3: 502.1, // Request size in bytes
+  value4: 1024.8, // Response size in bytes
   metadata: {
     endpoint: '/api/v1/users',
     method: 'GET',
     status_code: 200,
-    user_agent: 'Mozilla/5.0...'
-  }
+    user_agent: 'Mozilla/5.0...',
+  },
 })
 
 // Calculate 95th percentile response times for different endpoints
@@ -264,7 +264,7 @@ class SensorDataPipeline {
 
   async processSensorBatch(readings: SensorReading[]) {
     // Transform raw sensor data to time-series records
-    const records = readings.map(reading => ({
+    const records = readings.map((reading) => ({
       entity_id: reading.sensorId,
       time: reading.timestamp,
       value: reading.temperature,
@@ -273,8 +273,8 @@ class SensorDataPipeline {
       metadata: {
         location: reading.location,
         sensor_type: reading.type,
-        firmware_version: reading.firmwareVersion
-      }
+        firmware_version: reading.firmwareVersion,
+      },
     }))
 
     // Batch insert for efficiency
@@ -305,7 +305,7 @@ async function getDashboardMetrics(timeRange: string) {
     // Average CPU usage across all servers
     client.getAggregate('server_%', 'avg', 'value', {
       from: new Date(Date.now() - parseTimeRange(timeRange)),
-      to: new Date()
+      to: new Date(),
     }),
 
     // Memory usage trends
@@ -313,7 +313,7 @@ async function getDashboardMetrics(timeRange: string) {
       from: new Date(Date.now() - parseTimeRange(timeRange)),
       to: new Date(),
       aggregateColumn: 'value2',
-      aggregateFunction: 'avg'
+      aggregateFunction: 'avg',
     }),
 
     // Disk I/O statistics
@@ -327,14 +327,14 @@ async function getDashboardMetrics(timeRange: string) {
         AND time > NOW() - INTERVAL '${timeRange}'
       GROUP BY entity_id
       ORDER BY peak_disk_io DESC
-    `)
+    `),
   ])
 
   return {
     cpu: cpuMetrics,
     memory: memoryMetrics,
     disk: diskMetrics,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   }
 }
 ```
@@ -353,7 +353,7 @@ await client.initialize() // Creates hypertables if they don't exist
 await client.createHypertable('time_series_data', {
   timeColumn: 'time',
   chunkTimeInterval: '1 day',
-  partitioningColumn: 'entity_id'
+  partitioningColumn: 'entity_id',
 })
 ```
 
@@ -367,7 +367,7 @@ await client.enableCompression({
   table: 'time_series_data',
   compressAfter: '7 days',
   segmentBy: 'entity_id',
-  orderBy: 'time DESC'
+  orderBy: 'time DESC',
 })
 ```
 
@@ -392,20 +392,20 @@ await client.createContinuousAggregate('hourly_metrics', {
   refreshPolicy: {
     startOffset: '1 hour',
     endOffset: '1 minute',
-    scheduleInterval: '1 hour'
-  }
+    scheduleInterval: '1 hour',
+  },
 })
 ```
 
 ## 📚 Documentation
 
-| Document | Description |
-|----------|-------------|
+| Document                                         | Description                            |
+| ------------------------------------------------ | -------------------------------------- |
 | **[Getting Started](./docs/GETTING_STARTED.md)** | Step-by-step setup guide with examples |
-| **[API Reference](./docs/API_REFERENCE.md)** | Complete method documentation |
-| **[Architecture](./docs/ARCHITECTURE.md)** | System design and architecture |
-| **[Deployment Guide](./docs/DEPLOYMENT.md)** | Production deployment best practices |
-| **[Troubleshooting](./docs/TROUBLESHOOTING.md)** | Common issues and solutions |
+| **[API Reference](./docs/API_REFERENCE.md)**     | Complete method documentation          |
+| **[Architecture](./docs/ARCHITECTURE.md)**       | System design and architecture         |
+| **[Deployment Guide](./docs/DEPLOYMENT.md)**     | Production deployment best practices   |
+| **[Troubleshooting](./docs/TROUBLESHOOTING.md)** | Common issues and solutions            |
 
 ## Data Model
 
@@ -413,26 +413,26 @@ await client.createContinuousAggregate('hourly_metrics', {
 
 ```typescript
 interface TimeSeriesRecord {
-  entity_id: string      // Unique identifier for the data source
-  time: string          // ISO 8601 timestamp
-  value: number         // Primary numeric value
-  value2?: number       // Optional second value
-  value3?: number       // Optional third value
-  value4?: number       // Optional fourth value
+  entity_id: string // Unique identifier for the data source
+  time: string // ISO 8601 timestamp
+  value: number // Primary numeric value
+  value2?: number // Optional second value
+  value3?: number // Optional third value
+  value4?: number // Optional fourth value
   metadata?: Record<string, any> // Optional metadata object
 }
 ```
 
 ### Example Use Cases by Field
 
-| Field | IoT Sensors | System Monitoring | Application Logging |
-|-------|-------------|-------------------|-------------------|
-| `entity_id` | `sensor_001` | `server_prod_01` | `api_gateway` |
-| `value` | Temperature | CPU Usage % | Response Time |
-| `value2` | Humidity | Memory Usage | Success/Error Flag |
-| `value3` | Pressure | Network I/O | Request Size |
-| `value4` | Battery Level | Disk I/O | Response Size |
-| `metadata` | Location, Type | Instance Info | Endpoint, User Agent |
+| Field       | IoT Sensors    | System Monitoring | Application Logging  |
+| ----------- | -------------- | ----------------- | -------------------- |
+| `entity_id` | `sensor_001`   | `server_prod_01`  | `api_gateway`        |
+| `value`     | Temperature    | CPU Usage %       | Response Time        |
+| `value2`    | Humidity       | Memory Usage      | Success/Error Flag   |
+| `value3`    | Pressure       | Network I/O       | Request Size         |
+| `value4`    | Battery Level  | Disk I/O          | Response Size        |
+| `metadata`  | Location, Type | Instance Info     | Endpoint, User Agent |
 
 ## Performance & Scalability
 

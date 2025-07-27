@@ -364,7 +364,6 @@ export class MigrationManager {
       }
 
       return DEFAULT_DESCRIPTION
-
     } catch (error) {
       // Provide more specific error handling for different error types
       if (error instanceof Deno.errors.NotFound) {

@@ -7,13 +7,13 @@
 
 import type { SqlInstance } from '../types/internal.ts'
 import type {
-  TimeSeriesRecord,
+  FilterCriteria,
   LatestRecord,
   MultiEntityLatest,
   QueryOptions,
   StreamingOptions,
   TimeRange,
-  FilterCriteria,
+  TimeSeriesRecord,
 } from '../types/interfaces.ts'
 import { QueryError, ValidationError } from '../types/errors.ts'
 
@@ -454,7 +454,11 @@ export async function* getRecordsStream(
 export async function getAvailableEntities(
   sql: SqlInstance,
   options: SelectOptions = {},
-): Promise<Array<{ entity_id: string; entity_type: string; name?: string; is_active: boolean; metadata?: Record<string, unknown> }>> {
+): Promise<
+  Array<
+    { entity_id: string; entity_type: string; name?: string; is_active: boolean; metadata?: Record<string, unknown> }
+  >
+> {
   const opts = { ...DEFAULT_SELECT_OPTIONS, ...options }
 
   try {
@@ -628,7 +632,11 @@ function validateEntityId(entityId: string): void {
   }
 
   if (!/^[A-Za-z0-9_.-]+$/.test(entityId)) {
-    throw new ValidationError('Entity ID must contain only letters, numbers, underscores, dots, and dashes', 'entityId', entityId)
+    throw new ValidationError(
+      'Entity ID must contain only letters, numbers, underscores, dots, and dashes',
+      'entityId',
+      entityId,
+    )
   }
 }
 
@@ -645,7 +653,11 @@ function validateEntityType(entityType: string): void {
   }
 
   if (!/^[a-z_]+$/.test(entityType)) {
-    throw new ValidationError('Entity type must contain only lowercase letters and underscores', 'entityType', entityType)
+    throw new ValidationError(
+      'Entity type must contain only lowercase letters and underscores',
+      'entityType',
+      entityType,
+    )
   }
 }
 

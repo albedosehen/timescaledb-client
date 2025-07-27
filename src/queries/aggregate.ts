@@ -789,7 +789,11 @@ function validateEntityId(entityId: string): void {
   }
 
   if (!/^[A-Za-z0-9_.-]+$/.test(entityId)) {
-    throw new ValidationError('Entity ID must contain only letters, numbers, underscores, dots, and dashes', 'entityId', entityId)
+    throw new ValidationError(
+      'Entity ID must contain only letters, numbers, underscores, dots, and dashes',
+      'entityId',
+      entityId,
+    )
   }
 }
 

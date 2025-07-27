@@ -23,8 +23,8 @@ export const LOGGER_PRESETS = {
       level: 'debug' as const,
       prettyPrint: true,
       colors: true,
-      timestamp: true
-    }
+      timestamp: true,
+    },
   },
 
   /**
@@ -43,10 +43,10 @@ export const LOGGER_PRESETS = {
         {
           type: 'console' as const,
           format: 'json' as const,
-          minLevel: 'warn'
-        }
-      ]
-    }
+          minLevel: 'warn',
+        },
+      ],
+    },
   },
 
   /**
@@ -61,8 +61,8 @@ export const LOGGER_PRESETS = {
       level: 'error' as const,
       prettyPrint: false,
       colors: false,
-      timestamp: false
-    }
+      timestamp: false,
+    },
   },
 
   /**
@@ -81,7 +81,7 @@ export const LOGGER_PRESETS = {
         {
           type: 'console' as const,
           format: 'json' as const,
-          minLevel: 'info'
+          minLevel: 'info',
         },
         {
           type: 'file' as const,
@@ -89,11 +89,11 @@ export const LOGGER_PRESETS = {
           minLevel: 'warn',
           options: {
             path: '/var/log/app.log',
-            async: true
-          }
-        }
-      ]
-    }
+            async: true,
+          },
+        },
+      ],
+    },
   },
 
   /**
@@ -111,9 +111,9 @@ export const LOGGER_PRESETS = {
       serializer: {
         maxDepth: 20,
         includeStackTrace: true,
-        includeNonEnumerable: true
-      }
-    }
+        includeNonEnumerable: true,
+      },
+    },
   },
 
   /**
@@ -136,12 +136,12 @@ export const LOGGER_PRESETS = {
           options: {
             path: './logs/performance.log',
             async: true,
-            bufferSize: 5000
-          }
-        }
-      ]
-    }
-  }
+            bufferSize: 5000,
+          },
+        },
+      ],
+    },
+  },
 } as const
 
 /**
@@ -160,27 +160,27 @@ export function getLoggerPreset(presetName: keyof typeof LOGGER_PRESETS): Logger
  */
 export function getEnvironmentPreset(fallback: keyof typeof LOGGER_PRESETS = 'development'): LoggerConfig {
   const env = Deno.env.get('DENO_ENV') || Deno.env.get('NODE_ENV') || 'development'
-  
+
   switch (env.toLowerCase()) {
     case 'development':
     case 'dev':
       return LOGGER_PRESETS.development
-    
+
     case 'production':
     case 'prod':
       return LOGGER_PRESETS.production
-    
+
     case 'test':
     case 'testing':
       return LOGGER_PRESETS.testing
-    
+
     case 'debug':
       return LOGGER_PRESETS.debug
-    
+
     case 'cloud':
     case 'container':
       return LOGGER_PRESETS.cloud
-    
+
     default:
       return LOGGER_PRESETS[fallback]
   }
@@ -194,12 +194,12 @@ export function getEnvironmentPreset(fallback: keyof typeof LOGGER_PRESETS = 'de
  */
 export function createContextualPreset(
   basePreset: keyof typeof LOGGER_PRESETS,
-  context: Record<string, unknown>
+  context: Record<string, unknown>,
 ): LoggerConfig {
   const preset = LOGGER_PRESETS[basePreset]
-  
+
   return {
     ...preset,
-    context
+    context,
   } as LoggerConfig
 }

@@ -137,7 +137,8 @@
       "examples/",
       "scripts/",
       "docs/",
-      "temp/"
+      "temp/",
+      "src/database/sql/"
     ]
   },
   "fmt": {
@@ -164,7 +165,8 @@
       "examples/",
       "scripts/",
       "docs/",
-      "temp/"
+      "temp/",
+      "src/database/sql/"
     ]
   },
   "unstable": [

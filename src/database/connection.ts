@@ -44,7 +44,7 @@ export class DatabaseConnection {
   constructor(
     config: ConnectionConfig,
     logger?: Logger | undefined,
-    postgresFactory: PostgresFactory = postgres
+    postgresFactory: PostgresFactory = postgres,
   ) {
     this.config = { ...config }
     this.logger = logger

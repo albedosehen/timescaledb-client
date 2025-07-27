@@ -1,20 +1,24 @@
 // deno-lint-ignore-file no-explicit-any
 /**
  * Unit tests for DatabaseConnection class - Using dependency injection
- * 
+ *
  * Tests all public methods, configuration validation, error handling,
  * and various connection scenarios for the DatabaseConnection class.
  * Aims for 95%+ code coverage following project testing standards.
  */
 
-import { describe, it, beforeEach, afterEach } from '@std/testing/bdd'
-import { assertEquals, assertRejects, assertThrows, assert, assertInstanceOf } from '@std/assert'
-import { DatabaseConnection, createDatabaseConnection } from '../../../src/database/connection.ts'
+import { afterEach, beforeEach, describe, it } from '@std/testing/bdd'
+import { assert, assertEquals, assertInstanceOf, assertRejects, assertThrows } from '@std/assert'
+import { createDatabaseConnection, DatabaseConnection } from '../../../src/database/connection.ts'
 import type { ConnectionConfig } from '../../../src/types/config.ts'
 import { ConfigurationError, ConnectionError, ValidationError } from '../../../src/types/errors.ts'
 import { createPostgresMock, type ExtendedMockSql } from '../../mocks/postgres_mock.ts'
 import { TestLogger } from '../../utils/test_helpers.ts'
-import { TEST_CONNECTION_CONFIGS, MOCK_SQL_RESPONSES, DATABASE_ERROR_SCENARIOS } from '../../fixtures/database_fixtures.ts'
+import {
+  DATABASE_ERROR_SCENARIOS,
+  MOCK_SQL_RESPONSES,
+  TEST_CONNECTION_CONFIGS,
+} from '../../fixtures/database_fixtures.ts'
 
 /**
  * Create a mock postgres factory that supports the full postgres.js interface
@@ -62,7 +66,9 @@ describe.skip('DatabaseConnection', () => {
     // Set up default mock responses
     mockSql.setMockResult('SELECT 1 as test, version() as version', MOCK_SQL_RESPONSES.healthCheck)
     mockSql.setMockResult('SELECT timescaledb_version()', MOCK_SQL_RESPONSES.timescaleVersion)
-    mockSql.setMockResult('SELECT EXISTS( SELECT 1 FROM pg_extension WHERE extname = \'timescaledb\' ) as installed', [{ installed: true }])
+    mockSql.setMockResult("SELECT EXISTS( SELECT 1 FROM pg_extension WHERE extname = 'timescaledb' ) as installed", [{
+      installed: true,
+    }])
   })
 
   afterEach(() => {
@@ -80,10 +86,10 @@ describe.skip('DatabaseConnection', () => {
     describe('Valid Configurations', () => {
       it('should create connection with connection string', () => {
         const config: ConnectionConfig = {
-          connectionString: 'postgresql://user:pass@localhost:5432/testdb'
+          connectionString: 'postgresql://user:pass@localhost:5432/testdb',
         }
         const mockPostgresFactory = createMockPostgresFactory()
-        
+
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
         assertEquals(connection.isConnected(), false)
       })
@@ -91,7 +97,7 @@ describe.skip('DatabaseConnection', () => {
       it('should create connection with individual parameters', () => {
         const config = TEST_CONNECTION_CONFIGS.test!
         const mockPostgresFactory = createMockPostgresFactory()
-        
+
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
         assertEquals(connection.isConnected(), false)
       })
@@ -99,7 +105,7 @@ describe.skip('DatabaseConnection', () => {
       it('should create connection with minimal configuration', () => {
         const config = TEST_CONNECTION_CONFIGS.minimal!
         const mockPostgresFactory = createMockPostgresFactory()
-        
+
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
         assertEquals(connection.isConnected(), false)
       })
@@ -107,7 +113,7 @@ describe.skip('DatabaseConnection', () => {
       it('should create connection with async password function', () => {
         const config = TEST_CONNECTION_CONFIGS.asyncPassword!
         const mockPostgresFactory = createMockPostgresFactory()
-        
+
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
         assertEquals(connection.isConnected(), false)
       })
@@ -115,10 +121,10 @@ describe.skip('DatabaseConnection', () => {
       it('should create connection with SSL boolean', () => {
         const config: ConnectionConfig = {
           ...TEST_CONNECTION_CONFIGS.test!,
-          ssl: true
+          ssl: true,
         }
         const mockPostgresFactory = createMockPostgresFactory()
-        
+
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
         assertEquals(connection.isConnected(), false)
       })
@@ -131,11 +137,11 @@ describe.skip('DatabaseConnection', () => {
             mode: 'require',
             ca: 'test-ca',
             cert: 'test-cert',
-            key: 'test-key'
-          }
+            key: 'test-key',
+          },
         }
         const mockPostgresFactory = createMockPostgresFactory()
-        
+
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
         assertEquals(connection.isConnected(), false)
       })
@@ -143,10 +149,10 @@ describe.skip('DatabaseConnection', () => {
       it('should handle single port configuration', () => {
         const config: ConnectionConfig = {
           ...TEST_CONNECTION_CONFIGS.test!,
-          port: 5432
+          port: 5432,
         }
         const mockPostgresFactory = createMockPostgresFactory()
-        
+
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
         assertEquals(connection.isConnected(), false)
       })
@@ -154,10 +160,10 @@ describe.skip('DatabaseConnection', () => {
       it('should handle port array configuration', () => {
         const config: ConnectionConfig = {
           ...TEST_CONNECTION_CONFIGS.test!,
-          port: [5432, 5433, 5434]
+          port: [5432, 5433, 5434],
         }
         const mockPostgresFactory = createMockPostgresFactory()
-        
+
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
         assertEquals(connection.isConnected(), false)
       })
@@ -171,63 +177,63 @@ describe.skip('DatabaseConnection', () => {
         assertThrows(
           () => new DatabaseConnection(config, logger, mockPostgresFactory),
           ValidationError,
-          'Must provide either connectionString, host, or path'
+          'Must provide either connectionString, host, or path',
         )
       })
 
       it('should throw ValidationError for invalid port number', () => {
         const config: ConnectionConfig = {
           host: 'localhost',
-          port: 70000
+          port: 70000,
         }
         const mockPostgresFactory = createMockPostgresFactory()
-        
+
         assertThrows(
           () => new DatabaseConnection(config, logger, mockPostgresFactory),
           ValidationError,
-          'Port must be between 1 and 65535'
+          'Port must be between 1 and 65535',
         )
       })
 
       it('should throw ValidationError for invalid port in array', () => {
         const config: ConnectionConfig = {
           host: 'localhost',
-          port: [5432, 0, 5434]
+          port: [5432, 0, 5434],
         }
         const mockPostgresFactory = createMockPostgresFactory()
-        
+
         assertThrows(
           () => new DatabaseConnection(config, logger, mockPostgresFactory),
           ValidationError,
-          'Port must be between 1 and 65535'
+          'Port must be between 1 and 65535',
         )
       })
 
       it('should throw ValidationError for invalid maxConnections', () => {
         const config: ConnectionConfig = {
           host: 'localhost',
-          maxConnections: 0
+          maxConnections: 0,
         }
         const mockPostgresFactory = createMockPostgresFactory()
 
         assertThrows(
           () => new DatabaseConnection(config, logger, mockPostgresFactory),
           ValidationError,
-          'maxConnections must be at least 1'
+          'maxConnections must be at least 1',
         )
       })
 
       it('should throw ValidationError for invalid connectTimeout', () => {
         const config: ConnectionConfig = {
           host: 'localhost',
-          connectTimeout: 0
+          connectTimeout: 0,
         }
         const mockPostgresFactory = createMockPostgresFactory()
 
         assertThrows(
           () => new DatabaseConnection(config, logger, mockPostgresFactory),
           ValidationError,
-          'connectTimeout must be at least 1 second'
+          'connectTimeout must be at least 1 second',
         )
       })
 
@@ -235,15 +241,15 @@ describe.skip('DatabaseConnection', () => {
         const config: ConnectionConfig = {
           host: 'localhost',
           ssl: {
-            mode: 'invalid-mode' as any
-          }
+            mode: 'invalid-mode' as any,
+          },
         }
         const mockPostgresFactory = createMockPostgresFactory()
 
         assertThrows(
           () => new DatabaseConnection(config, logger, mockPostgresFactory),
           ValidationError,
-          'Invalid SSL mode'
+          'Invalid SSL mode',
         )
       })
 
@@ -251,15 +257,15 @@ describe.skip('DatabaseConnection', () => {
         const config: ConnectionConfig = {
           host: 'localhost',
           ssl: {
-            ca: 123 as any
-          }
+            ca: 123 as any,
+          },
         }
         const mockPostgresFactory = createMockPostgresFactory()
 
         assertThrows(
           () => new DatabaseConnection(config, logger, mockPostgresFactory),
           ValidationError,
-          'SSL CA certificate must be a string'
+          'SSL CA certificate must be a string',
         )
       })
 
@@ -267,15 +273,15 @@ describe.skip('DatabaseConnection', () => {
         const config: ConnectionConfig = {
           host: 'localhost',
           ssl: {
-            cert: {} as any
-          }
+            cert: {} as any,
+          },
         }
         const mockPostgresFactory = createMockPostgresFactory()
 
         assertThrows(
           () => new DatabaseConnection(config, logger, mockPostgresFactory),
           ValidationError,
-          'SSL client certificate must be a string'
+          'SSL client certificate must be a string',
         )
       })
 
@@ -283,15 +289,15 @@ describe.skip('DatabaseConnection', () => {
         const config: ConnectionConfig = {
           host: 'localhost',
           ssl: {
-            key: [] as any
-          }
+            key: [] as any,
+          },
         }
         const mockPostgresFactory = createMockPostgresFactory()
 
         assertThrows(
           () => new DatabaseConnection(config, logger, mockPostgresFactory),
           ValidationError,
-          'SSL private key must be a string'
+          'SSL private key must be a string',
         )
       })
     })
@@ -307,11 +313,11 @@ describe.skip('DatabaseConnection', () => {
     describe('Successful Connections', () => {
       it('should connect successfully with connection string', async () => {
         const config: ConnectionConfig = {
-          connectionString: 'postgresql://user:pass@localhost:5432/testdb'
+          connectionString: 'postgresql://user:pass@localhost:5432/testdb',
         }
         const mockPostgresFactory = createMockPostgresFactory(mockSql)
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
-        
+
         const sql = await connection.connect()
         assertInstanceOf(sql, Object)
         assertEquals(connection.isConnected(), true)
@@ -322,7 +328,7 @@ describe.skip('DatabaseConnection', () => {
         const config = TEST_CONNECTION_CONFIGS.test!
         const mockPostgresFactory = createMockPostgresFactory(mockSql)
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
-        
+
         const sql = await connection.connect()
         assertInstanceOf(sql, Object)
         assertEquals(connection.isConnected(), true)
@@ -332,10 +338,10 @@ describe.skip('DatabaseConnection', () => {
         const config = TEST_CONNECTION_CONFIGS.test!
         const mockPostgresFactory = createMockPostgresFactory(mockSql)
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
-        
+
         const sql1 = await connection.connect()
         const sql2 = await connection.connect()
-        
+
         assertEquals(sql1, sql2)
         assert(logger.hasLogMessage('Reusing existing connection', 'debug'))
       })
@@ -355,25 +361,28 @@ describe.skip('DatabaseConnection', () => {
         const config = TEST_CONNECTION_CONFIGS.test!
         const mockPostgresFactory = createMockPostgresFactory(mockSql, DATABASE_ERROR_SCENARIOS.connectionTimeout.error)
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
-        
+
         await assertRejects(
           () => connection.connect(),
           ConnectionError,
-          'Failed to establish database connection'
+          'Failed to establish database connection',
         )
-        
+
         assertEquals(connection.isConnected(), false)
       })
 
       it('should handle authentication failure', async () => {
         const config = TEST_CONNECTION_CONFIGS.test!
-        const mockPostgresFactory = createMockPostgresFactory(mockSql, DATABASE_ERROR_SCENARIOS.authenticationFailed.error)
+        const mockPostgresFactory = createMockPostgresFactory(
+          mockSql,
+          DATABASE_ERROR_SCENARIOS.authenticationFailed.error,
+        )
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
 
         await assertRejects(
           () => connection.connect(),
           ConnectionError,
-          'Failed to establish database connection'
+          'Failed to establish database connection',
         )
       })
 
@@ -382,14 +391,14 @@ describe.skip('DatabaseConnection', () => {
           host: 'localhost',
           database: 'test',
           username: 'user',
-          password: () => Promise.reject(new Error('Password fetch failed'))
+          password: () => Promise.reject(new Error('Password fetch failed')),
         }
         const mockPostgresFactory = createMockPostgresFactory(mockSql)
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
 
         await assertRejects(
           () => connection.connect(),
-          ConnectionError
+          ConnectionError,
         )
       })
 
@@ -404,7 +413,7 @@ describe.skip('DatabaseConnection', () => {
         await assertRejects(
           () => connection.connect(),
           ConnectionError,
-          'Failed to establish database connection'
+          'Failed to establish database connection',
         )
       })
     })
@@ -412,7 +421,7 @@ describe.skip('DatabaseConnection', () => {
     describe('SSL Configuration Building', () => {
       it('should build SSL config with connection string ssl parameter', async () => {
         const config: ConnectionConfig = {
-          connectionString: 'postgresql://user:pass@localhost:5432/testdb?ssl=true&sslmode=require'
+          connectionString: 'postgresql://user:pass@localhost:5432/testdb?ssl=true&sslmode=require',
         }
         const mockPostgresFactory = createMockPostgresFactory(mockSql)
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
@@ -428,7 +437,7 @@ describe.skip('DatabaseConnection', () => {
           const config: ConnectionConfig = {
             host: 'localhost',
             database: 'test',
-            ssl: { mode: mode as any }
+            ssl: { mode: mode as any },
           }
           const mockPostgresFactory = createMockPostgresFactory(mockSql)
           const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
@@ -482,7 +491,7 @@ describe.skip('DatabaseConnection', () => {
       await assertRejects(
         () => connection.disconnect(),
         ConnectionError,
-        'Failed to close database connection'
+        'Failed to close database connection',
       )
     })
 
@@ -524,7 +533,7 @@ describe.skip('DatabaseConnection', () => {
       assertThrows(
         () => connection.getSql(),
         ConnectionError,
-        'Database connection not established. Call connect() first.'
+        'Database connection not established. Call connect() first.',
       )
     })
   })
@@ -588,7 +597,7 @@ describe.skip('DatabaseConnection', () => {
       await assertRejects(
         () => connection.testConnection(),
         ConnectionError,
-        'No connection to test'
+        'No connection to test',
       )
     })
 
@@ -605,7 +614,7 @@ describe.skip('DatabaseConnection', () => {
       await assertRejects(
         () => connection.testConnection(),
         ConnectionError,
-        'Connection test failed'
+        'Connection test failed',
       )
     })
 
@@ -622,7 +631,7 @@ describe.skip('DatabaseConnection', () => {
       await assertRejects(
         () => connection.testConnection(),
         ConnectionError,
-        'Invalid connection test response'
+        'Invalid connection test response',
       )
     })
   })
@@ -652,7 +661,7 @@ describe.skip('DatabaseConnection', () => {
       await assertRejects(
         () => connection.validateTimescaleDB(),
         ConnectionError,
-        'No connection available for TimescaleDB validation'
+        'No connection available for TimescaleDB validation',
       )
     })
 
@@ -664,12 +673,14 @@ describe.skip('DatabaseConnection', () => {
       await connection.connect()
 
       // Mock extension not installed
-      mockSql.setMockResult('SELECT EXISTS( SELECT 1 FROM pg_extension WHERE extname = \'timescaledb\' ) as installed', [{ installed: false }])
+      mockSql.setMockResult("SELECT EXISTS( SELECT 1 FROM pg_extension WHERE extname = 'timescaledb' ) as installed", [{
+        installed: false,
+      }])
 
       await assertRejects(
         () => connection.validateTimescaleDB(),
         ConfigurationError,
-        'TimescaleDB extension is not installed'
+        'TimescaleDB extension is not installed',
       )
     })
 
@@ -681,12 +692,15 @@ describe.skip('DatabaseConnection', () => {
       await connection.connect()
 
       // Mock query error
-      mockSql.setErrorCondition('SELECT EXISTS( SELECT 1 FROM pg_extension WHERE extname = \'timescaledb\' ) as installed', new Error('Query failed'))
+      mockSql.setErrorCondition(
+        "SELECT EXISTS( SELECT 1 FROM pg_extension WHERE extname = 'timescaledb' ) as installed",
+        new Error('Query failed'),
+      )
 
       await assertRejects(
         () => connection.validateTimescaleDB(),
         ConfigurationError,
-        'Failed to validate TimescaleDB extension'
+        'Failed to validate TimescaleDB extension',
       )
     })
 
@@ -703,7 +717,7 @@ describe.skip('DatabaseConnection', () => {
       await assertRejects(
         () => connection.validateTimescaleDB(),
         ConfigurationError,
-        'Failed to validate TimescaleDB extension'
+        'Failed to validate TimescaleDB extension',
       )
     })
   })
@@ -717,46 +731,46 @@ describe.skip('DatabaseConnection', () => {
     describe('Connection String Parsing', () => {
       it('should parse standard connection string', async () => {
         const config: ConnectionConfig = {
-          connectionString: 'postgresql://user:pass@localhost:5432/testdb'
+          connectionString: 'postgresql://user:pass@localhost:5432/testdb',
         }
         const mockPostgresFactory = createMockPostgresFactory(mockSql)
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
-        
+
         const sql = await connection.connect()
         assertInstanceOf(sql, Object)
       })
 
       it('should parse connection string with query parameters', async () => {
         const config: ConnectionConfig = {
-          connectionString: 'postgresql://user:pass@localhost:5432/testdb?sslmode=require&application_name=test'
+          connectionString: 'postgresql://user:pass@localhost:5432/testdb?sslmode=require&application_name=test',
         }
         const mockPostgresFactory = createMockPostgresFactory(mockSql)
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
-        
+
         const sql = await connection.connect()
         assertInstanceOf(sql, Object)
       })
 
       it('should handle invalid connection string format', () => {
         const config: ConnectionConfig = {
-          connectionString: 'invalid-connection-string'
+          connectionString: 'invalid-connection-string',
         }
         const mockPostgresFactory = createMockPostgresFactory(mockSql)
-        
+
         assertThrows(
           () => new DatabaseConnection(config, logger, mockPostgresFactory),
           ConfigurationError,
-          'Invalid connection string format'
+          'Invalid connection string format',
         )
       })
 
       it('should parse connection string with encoded credentials', async () => {
         const config: ConnectionConfig = {
-          connectionString: 'postgresql://user%40domain:p%40ssword@localhost:5432/testdb'
+          connectionString: 'postgresql://user%40domain:p%40ssword@localhost:5432/testdb',
         }
         const mockPostgresFactory = createMockPostgresFactory(mockSql)
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
-        
+
         const sql = await connection.connect()
         assertInstanceOf(sql, Object)
       })
@@ -768,13 +782,13 @@ describe.skip('DatabaseConnection', () => {
           host: 'localhost',
           database: 'test',
           username: 'user',
-          password: 'secret-password'
+          password: 'secret-password',
         }
         const mockPostgresFactory = createMockPostgresFactory(mockSql, new Error('Connection failed'))
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
-        
+
         await assertRejects(() => connection.connect(), ConnectionError)
-        
+
         // Check that password is redacted in error logs
         const errorLogs = logger.getLogsByLevel('error')
         assert(errorLogs.length > 0)
@@ -786,13 +800,13 @@ describe.skip('DatabaseConnection', () => {
 
       it('should redact password in connection string logs', async () => {
         const config: ConnectionConfig = {
-          connectionString: 'postgresql://user:secret@localhost:5432/testdb'
+          connectionString: 'postgresql://user:secret@localhost:5432/testdb',
         }
         const mockPostgresFactory = createMockPostgresFactory(mockSql, new Error('Connection failed'))
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
-        
+
         await assertRejects(() => connection.connect(), ConnectionError)
-        
+
         // Check that password is redacted in connection string
         const errorLogs = logger.getLogsByLevel('error')
         assert(errorLogs.length > 0)
@@ -807,8 +821,8 @@ describe.skip('DatabaseConnection', () => {
           host: 'localhost',
           database: 'test',
           ssl: {
-            key: 'secret-key-content'
-          }
+            key: 'secret-key-content',
+          },
         }
         const mockPostgresFactory = createMockPostgresFactory(mockSql, new Error('Connection failed'))
         const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
@@ -836,11 +850,11 @@ describe.skip('DatabaseConnection', () => {
       const config = TEST_CONNECTION_CONFIGS.test!
       const mockPostgresFactory = createMockPostgresFactory(mockSql, 'String error')
       const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
-      
+
       await assertRejects(
         () => connection.connect(),
         ConnectionError,
-        'Failed to establish database connection'
+        'Failed to establish database connection',
       )
     })
 
@@ -849,14 +863,14 @@ describe.skip('DatabaseConnection', () => {
         host: 'localhost',
         database: 'test',
         username: 'user',
-        password: () => Promise.reject('String rejection')
+        password: () => Promise.reject('String rejection'),
       }
       const mockPostgresFactory = createMockPostgresFactory(mockSql)
       const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
-      
+
       await assertRejects(
         () => connection.connect(),
-        ConnectionError
+        ConnectionError,
       )
     })
 
@@ -864,15 +878,15 @@ describe.skip('DatabaseConnection', () => {
       const config = TEST_CONNECTION_CONFIGS.test!
       const mockPostgresFactory = createMockPostgresFactory(mockSql)
       const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
-      
+
       await connection.connect()
-      
+
       // Mock end() to throw non-Error
       mockSql.end = () => Promise.reject('String error')
 
       await assertRejects(
         () => connection.disconnect(),
-        ConnectionError
+        ConnectionError,
       )
     })
 
@@ -880,15 +894,15 @@ describe.skip('DatabaseConnection', () => {
       const config = TEST_CONNECTION_CONFIGS.test!
       const mockPostgresFactory = createMockPostgresFactory(mockSql)
       const connection = new DatabaseConnection(config, logger, mockPostgresFactory)
-      
+
       await connection.connect()
-      
+
       // Mock query to throw non-Error
       mockSql.setErrorCondition('SELECT 1 as test, version() as version', 'String error' as any)
-      
+
       await assertRejects(
         () => connection.testConnection(),
-        ConnectionError
+        ConnectionError,
       )
     })
 
@@ -900,24 +914,27 @@ describe.skip('DatabaseConnection', () => {
       await connection.connect()
 
       // Mock query to throw non-Error
-      mockSql.setErrorCondition('SELECT EXISTS( SELECT 1 FROM pg_extension WHERE extname = \'timescaledb\' ) as installed', 'String error' as any)
+      mockSql.setErrorCondition(
+        "SELECT EXISTS( SELECT 1 FROM pg_extension WHERE extname = 'timescaledb' ) as installed",
+        'String error' as any,
+      )
 
       await assertRejects(
         () => connection.validateTimescaleDB(),
-        ConfigurationError
+        ConfigurationError,
       )
     })
 
     it('should handle invalid connection string that throws during parsing', () => {
       const config: ConnectionConfig = {
-        connectionString: 'not-a-valid-url'
+        connectionString: 'not-a-valid-url',
       }
       const mockPostgresFactory = createMockPostgresFactory(mockSql)
 
       assertThrows(
         () => new DatabaseConnection(config, logger, mockPostgresFactory),
         ConfigurationError,
-        'Invalid connection string format'
+        'Invalid connection string format',
       )
     })
   })
@@ -932,7 +949,7 @@ describe.skip('DatabaseConnection', () => {
       const config = TEST_CONNECTION_CONFIGS.test!
       const mockPostgresFactory = createMockPostgresFactory(mockSql)
       const connection = createDatabaseConnection(config, logger, mockPostgresFactory)
-      
+
       assertInstanceOf(connection, DatabaseConnection)
       assertEquals(connection.isConnected(), false)
     })
@@ -941,7 +958,7 @@ describe.skip('DatabaseConnection', () => {
       const config = TEST_CONNECTION_CONFIGS.test!
       const mockPostgresFactory = createMockPostgresFactory(mockSql)
       const connection = createDatabaseConnection(config, undefined, mockPostgresFactory)
-      
+
       assertInstanceOf(connection, DatabaseConnection)
       assertEquals(connection.isConnected(), false)
     })
@@ -953,7 +970,7 @@ describe.skip('DatabaseConnection', () => {
       assertThrows(
         () => createDatabaseConnection(config, logger, mockPostgresFactory),
         ValidationError,
-        'Must provide either connectionString, host, or path'
+        'Must provide either connectionString, host, or path',
       )
     })
   })

@@ -31,34 +31,23 @@ export type { ClientOptions, ConnectionConfig, Logger, SSLConfig } from './types
 
 // Universal time-series data types
 export type {
-  TimeSeriesRecord,
+  AggregationFunction,
+  AggregationResult,
+  BatchResult,
   EntityMetadata,
   LatestRecord,
   MultiEntityLatest,
-  BatchResult,
-  TimeRange,
-  TimeInterval,
-  AggregationFunction,
-  AggregationResult,
   StatisticalResult,
+  TimeInterval,
+  TimeRange,
+  TimeSeriesRecord,
 } from './types/interfaces.ts'
 
 // Query and operation types
-export type {
-  QueryOptions,
-  StreamingOptions,
-  FilterCriteria,
-  BulkOperationConfig,
-} from './types/interfaces.ts'
+export type { BulkOperationConfig, FilterCriteria, QueryOptions, StreamingOptions } from './types/interfaces.ts'
 
 // Schema and metadata types
-export type {
-  HealthCheckResult,
-  HypertableInfo,
-  IndexInfo,
-  RetentionPolicy,
-  SchemaInfo
-} from './types/interfaces.ts'
+export type { HealthCheckResult, HypertableInfo, IndexInfo, RetentionPolicy, SchemaInfo } from './types/interfaces.ts'
 
 // Validation helper interface
 export type { ValidationHelpers } from './types/interfaces.ts'
@@ -91,10 +80,10 @@ export type { AggregationOptions, InsertOptions, SelectOptions } from './queries
 
 // Generic aggregation result types
 export type {
-  TimeBucketResult,
-  MultiValueAggregationResult,
-  WeightedAverageResult,
   DeltaResult,
+  MultiValueAggregationResult,
+  TimeBucketResult,
+  WeightedAverageResult,
 } from './queries/aggregate.ts'
 
 // ==================== DATABASE LAYER ====================
@@ -166,7 +155,7 @@ export const QuickStart = {
 }
 
 // Import types for validators
-import type { TimeSeriesRecord, EntityMetadata, TimeRange } from './types/interfaces.ts'
+import type { EntityMetadata, TimeRange, TimeSeriesRecord } from './types/interfaces.ts'
 
 /**
  * Validation utilities for time-series data
