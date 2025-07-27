@@ -179,11 +179,12 @@ export class HealthChecker {
   async performHealthCheck(): Promise<HealthCheckResult> {
     const startTime = Date.now()
     const timestamp = new Date()
+    let timeoutId: number | undefined
 
     try {
-      // Create timeout promise
+      // Create timeout promise with cleanup tracking
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => {
+        timeoutId = setTimeout(() => {
           reject(
             new TimeoutError(
               `Health check timed out after ${this.config.timeoutMs}ms`,
@@ -200,6 +201,11 @@ export class HealthChecker {
         timeoutPromise,
       ])
 
+      // Clear timeout timer to prevent leak
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId)
+      }
+
       // Update state
       this.updateHealthState(result)
       this.recordHealthResult(result)
@@ -212,6 +218,11 @@ export class HealthChecker {
 
       return result
     } catch (error) {
+      // Clear timeout timer on error as well
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId)
+      }
+
       const errorResult = this.createErrorResult(timestamp, error)
       this.updateHealthState(errorResult)
       this.recordHealthResult(errorResult)
@@ -326,7 +337,7 @@ export class HealthChecker {
       const warnings: string[] = []
 
       // Expected tables
-      const expectedTables = ['price_ticks', 'ohlc_data']
+      const expectedTables = ['time_series_data', 'entities']
 
       // Check if tables exist
       const tableResult = await sql`
@@ -353,9 +364,11 @@ export class HealthChecker {
 
       // Check indexes
       const expectedIndexes = [
-        'ix_price_ticks_symbol_time',
-        'ix_price_ticks_time',
-        'ix_ohlc_data_symbol_time',
+        'ix_entity_time',
+        'ix_time',
+        'ix_source',
+        'ix_entities_type',
+        'ix_entities_location',
       ]
 
       const indexResult = await sql`

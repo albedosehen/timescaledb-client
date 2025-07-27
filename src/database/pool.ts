@@ -5,10 +5,16 @@
  * retry logic, and graceful shutdown capabilities.
  */
 
+import postgres from 'postgres'
 import type { ClientOptions, ConnectionConfig, Logger } from '../types/config.ts'
 import type { ConnectionState, RetryConfig, SqlInstance } from '../types/internal.ts'
 import { ConnectionError, ErrorUtils, TimeoutError } from '../types/errors.ts'
 import { DatabaseConnection } from './connection.ts'
+
+/**
+ * Type for postgres factory function to enable dependency injection
+ */
+type PostgresFactory = typeof postgres
 
 /**
  * Pool statistics for monitoring
@@ -54,6 +60,7 @@ export class ConnectionPool {
   private readonly config: PoolConfig
   private connectionConfig: ConnectionConfig
   private readonly logger?: Logger | undefined
+  private readonly postgresFactory: PostgresFactory
 
   // Pool state tracking
   private totalQueries = 0
@@ -66,16 +73,19 @@ export class ConnectionPool {
    * Create a new ConnectionPool instance
    *
    * @param connectionConfig Database connection configuration
-   * @param clientOptions Client options for pool behavior (optional)
    * @param logger Optional logger for debugging and monitoring
+   * @param clientOptions Client options for pool behavior (optional)
+   * @param postgresFactory Optional postgres factory for dependency injection (default: postgres)
    */
   constructor(
     connectionConfig: ConnectionConfig,
     logger?: Logger | undefined,
     clientOptions: ClientOptions = {},
+    postgresFactory: PostgresFactory = postgres,
   ) {
     this.connectionConfig = { ...connectionConfig }
     this.logger = logger
+    this.postgresFactory = postgresFactory
     this.config = this.buildPoolConfig(connectionConfig, clientOptions)
   }
 
@@ -354,7 +364,7 @@ export class ConnectionPool {
 
     for (let attempt = 0; attempt <= retryConfig.maxRetries; attempt++) {
       try {
-        this.connection = new DatabaseConnection(this.connectionConfig, this.logger)
+        this.connection = new DatabaseConnection(this.connectionConfig, this.logger, this.postgresFactory)
         return await this.connection.connect()
       } catch (error) {
         const isLastAttempt = attempt === retryConfig.maxRetries
@@ -449,7 +459,9 @@ export class ConnectionPool {
 export function createConnectionPool(
   connectionConfig: ConnectionConfig,
   logger?: Logger,
+  // deno-lint-ignore default-param-last
   clientOptions: ClientOptions = {},
+  postgresFactory?: PostgresFactory,
 ): ConnectionPool {
-  return new ConnectionPool(connectionConfig, logger, clientOptions)
+  return new ConnectionPool(connectionConfig, logger, clientOptions, postgresFactory)
 }

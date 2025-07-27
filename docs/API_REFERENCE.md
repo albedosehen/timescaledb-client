@@ -7,13 +7,12 @@
 3. [Data Insertion](#data-insertion)
 4. [Data Querying](#data-querying)
 5. [Aggregation Operations](#aggregation-operations)
-6. [Analytics Operations](#analytics-operations)
-7. [Streaming Operations](#streaming-operations)
-8. [Schema Management](#schema-management)
-9. [Error Handling](#error-handling)
-10. [Type Definitions](#type-definitions)
-11. [Configuration Options](#configuration-options)
-12. [Performance Considerations](#performance-considerations)
+6. [Streaming Operations](#streaming-operations)
+7. [Schema Management](#schema-management)
+8. [Error Handling](#error-handling)
+9. [Type Definitions](#type-definitions)
+10. [Configuration Options](#configuration-options)
+11. [Performance Considerations](#performance-considerations)
 
 ---
 
@@ -21,15 +20,15 @@
 
 ### Factory Pattern (Recommended)
 
-The [`ClientFactory`](src/factory.ts:1) provides multiple ways to create [`TimescaleClient`](src/client.ts:124) instances:
+The [`ClientFactory`](../src/factory.ts:1) provides multiple ways to create [`TimescaleClient`](../src/client.ts:124) instances:
 
 #### `ClientFactory.fromConnectionString()`
 
 ```typescript
-import { ClientFactory } from 'timescaledb-client'
+import { ClientFactory } from '@timescale/client'
 
 const client = await ClientFactory.fromConnectionString(
-  'postgresql://user:pass@host:5432/database',
+  'postgresql://user:pass@host:5432/iot_database',
   {
     defaultBatchSize: 5000,
     validateInputs: true,
@@ -51,7 +50,7 @@ const client = await ClientFactory.fromConnectionString(
 const client = await ClientFactory.fromConfig({
   host: 'localhost',
   port: 5432,
-  database: 'timescale_db',
+  database: 'sensor_data',
   username: 'user',
   password: 'password',
   ssl: true
@@ -88,7 +87,7 @@ const client = await ClientFactory.fromEnvironment({
 
 ```typescript
 import postgres from 'postgres'
-import { TimescaleClient } from 'timescaledb-client'
+import { TimescaleClient } from '@timescale/client'
 
 const sql = postgres('postgresql://...')
 const client = new TimescaleClient(sql, {
@@ -113,7 +112,7 @@ await client.initialize()
 
 **Throws:**
 
-- [`ConnectionError`](src/types/errors.ts:1) if initialization fails
+- [`ConnectionError`](../src/types/errors.ts:1) if initialization fails
 
 ### `healthCheck()`
 
@@ -166,77 +165,62 @@ await client.close()
 
 ## Data Insertion
 
-### `insertTick()`
+### `insertRecord()`
 
-Inserts a single price tick into the database.
+Inserts a single time-series record into the database.
 
 ```typescript
-await client.insertTick({
-  symbol: 'BTCUSD',
-  price: 45000.50,
-  volume: 1.25,
-  timestamp: '2024-01-15T10:30:00.000Z'
+await client.insertRecord({
+  entity_id: 'sensor_001',
+  time: '2024-01-15T10:30:00.000Z',
+  value: 23.5,      // Temperature
+  value2: 65.2,     // Humidity
+  metadata: { location: 'warehouse_a', type: 'DHT22' }
 })
 ```
 
 **Parameters:**
 
-- `tick` (PriceTick): Price tick data
+- `record` (TimeSeriesRecord): Time-series data record
 - `options` (InsertOptions, optional): Insert configuration
 
 **Returns:** `Promise<void>`
 
 **Throws:**
 
-- [`ValidationError`](src/types/errors.ts:1) for invalid data
-- [`QueryError`](src/types/errors.ts:1) for database issues
+- [`ValidationError`](../src/types/errors.ts:1) for invalid data
+- [`QueryError`](../src/types/errors.ts:1) for database issues
 
-### `insertOhlc()`
+### `insertManyRecords()`
 
-Inserts a single OHLC candle into the database.
-
-```typescript
-await client.insertOhlc({
-  symbol: 'ETHUSD',
-  timestamp: '2024-01-15T10:00:00.000Z',
-  open: 3000.00,
-  high: 3050.25,
-  low: 2980.75,
-  close: 3025.50,
-  volume: 125.75
-})
-```
-
-**Parameters:**
-
-- `candle` (Ohlc): OHLC candle data
-- `options` (InsertOptions, optional): Insert configuration
-
-**Returns:** `Promise<void>`
-
-**Validation:**
-
-- Validates OHLC price relationships (high ≥ max(open,close), low ≤ min(open,close))
-- Automatic upsert on conflict
-
-### `insertManyTicks()`
-
-Inserts multiple price ticks efficiently in batches.
+Inserts multiple time-series records efficiently in batches.
 
 ```typescript
-const ticks: PriceTick[] = [
-  { symbol: 'BTCUSD', price: 45000, timestamp: '2024-01-15T10:30:00Z' },
-  { symbol: 'ETHUSD', price: 3000, timestamp: '2024-01-15T10:30:01Z' },
-  // ... more ticks
+const records: TimeSeriesRecord[] = [
+  {
+    entity_id: 'temp_sensor_01',
+    time: '2024-01-15T10:30:00Z',
+    value: 22.1,
+    value2: 58.3,
+    metadata: { room: 'server_room' }
+  },
+  {
+    entity_id: 'temp_sensor_02',
+    time: '2024-01-15T10:30:01Z',
+    value: 19.8,
+    value2: 62.1,
+    metadata: { room: 'storage' }
+  },
+  // ... more records
 ]
 
-const result = await client.insertManyTicks(ticks)
+const result = await client.insertManyRecords(records)
 console.log(`Processed: ${result.processed}, Failed: ${result.failed}`)
 ```
 
 **Parameters:**
 
-- `ticks` (PriceTick[]): Array of 1-10,000 price ticks
+- `records` (TimeSeriesRecord[]): Array of 1-10,000 time-series records
 - `options` (InsertOptions, optional): Insert configuration
 
 **Returns:** `Promise<BatchResult>`
@@ -256,476 +240,221 @@ interface BatchResult {
 - Uses postgres.js bulk insert for optimal performance
 - Continues processing on individual failures (partial success)
 
-### `insertManyOhlc()`
-
-Inserts multiple OHLC candles efficiently.
-
-```typescript
-const candles: Ohlc[] = [
-  {
-    symbol: 'NVDA',
-    timestamp: '2024-01-15T09:30:00Z',
-    open: 150.00,
-    high: 152.50,
-    low: 149.75,
-    close: 151.25,
-    volume: 1000000
-  },
-  // ... more candles
-]
-
-const result = await client.insertManyOhlc(candles)
-```
-
-**Parameters:**
-
-- `candles` (Ohlc[]): Array of OHLC candles
-- `options` (InsertOptions, optional): Insert configuration
-
-**Returns:** `Promise<BatchResult>`
-
 ---
 
 ## Data Querying
 
-### `getTicks()`
+### `getRecords()`
 
-Retrieves price ticks for a specific symbol and time range.
+Retrieves time-series records for a specific entity and time range.
 
 ```typescript
-const ticks = await client.getTicks('BTCUSD', {
+const records = await client.getRecords('temp_sensor_01', {
   from: new Date('2024-01-15T00:00:00Z'),
   to: new Date('2024-01-15T23:59:59Z'),
   limit: 5000
 })
 
 // Returns array ordered by time DESC (newest first)
-ticks.forEach(tick => {
-  console.log(`${tick.timestamp}: ${tick.symbol} = $${tick.price}`)
+records.forEach(record => {
+  console.log(`${record.time}: ${record.entity_id} = ${record.value}°C`)
 })
 ```
 
 **Parameters:**
 
-- `symbol` (string): Symbol to query
+- `entity_id` (string): Entity identifier to query
 - `range` (TimeRange): Time range for query
 - `options` (SelectOptions, optional): Query configuration
 
-**Returns:** `Promise<PriceTick[]>`
+**Returns:** `Promise<TimeSeriesRecord[]>`
 
 **Query Optimization:**
 
-- Uses `ix_price_ticks_symbol_time` index for efficient retrieval
+- Uses `ix_time_series_data_entity_id_time` index for efficient retrieval
 - Automatically applies time-based partitioning
 - Returns results ordered by time DESC
 
-### `getOhlc()`
+### `getLatestValues()`
 
-Retrieves OHLC data for a specific interval.
+Gets the most recent values for one or more entities.
 
 ```typescript
-const dailyCandles = await client.getOhlc('NVDA', '1d', {
-  from: new Date('2024-01-01'),
-  to: new Date('2024-01-31'),
-  limit: 31
+const latest = await client.getLatestValues(['temp_sensor_01', 'humidity_sensor_01'])
+latest.forEach(record => {
+  console.log(`${record.entity_id}: ${record.value} (${record.time})`)
 })
 ```
 
 **Parameters:**
 
-- `symbol` (string): Symbol to query
-- `interval` (TimeInterval): Time interval ('1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d' | '1w')
-- `range` (TimeRange): Time range for query
-- `options` (SelectOptions, optional): Query configuration
+- `entity_ids` (string | string[]): Entity identifier(s) to query
 
-**Returns:** `Promise<Ohlc[]>`
-
-**Behavior:**
-
-- Queries `ohlc_data` table with interval filtering
-- Includes derived fields (price_change, price_change_percent)
-- Optimized for common intervals via partial indexes
-
-### `getOhlcFromTicks()`
-
-Generates OHLC data dynamically from tick data using TimescaleDB aggregation functions.
-
-```typescript
-// Generate 15-minute candles from tick data
-const candles = await client.getOhlcFromTicks('BTCUSD', 15, {
-  from: new Date('2024-01-15T09:00:00Z'),
-  to: new Date('2024-01-15T17:00:00Z')
-})
-```
-
-**Parameters:**
-
-- `symbol` (string): Symbol to query
-- `intervalMinutes` (number): Interval in minutes
-- `range` (TimeRange): Time range for query
-- `options` (SelectOptions, optional): Query configuration
-
-**Returns:** `Promise<Ohlc[]>`
-
-**Implementation:**
-
-- Uses `time_bucket()` for time-based aggregation
-- Employs `first()`, `last()`, `max()`, `min()` functions
-- More flexible than pre-stored OHLC data but computationally expensive
-
-### `getLatestPrice()`
-
-Gets the most recent price for a symbol.
-
-```typescript
-const currentPrice = await client.getLatestPrice('BTCUSD')
-if (currentPrice !== null) {
-  console.log(`Current BTC price: $${currentPrice}`)
-}
-```
-
-**Parameters:**
-
-- `symbol` (string): Symbol to query
-
-**Returns:** `Promise<number | null>`
+**Returns:** `Promise<TimeSeriesRecord[]>`
 
 **Optimization:**
 
-- Single-row query with time DESC ordering
+- Single-row query per entity with time DESC ordering
 - Uses covering index for maximum performance
-- Returns `null` if no data exists
+- Returns empty array if no data exists
 
-### `getMultiSymbolLatest()`
+### `getMultiEntityData()`
 
-Efficiently retrieves latest prices for multiple symbols.
+Efficiently retrieves data for multiple entities within a time range.
 
 ```typescript
-const symbols = ['BTCUSD', 'ETHUSD', 'ADAUSD']
-const result = await client.getMultiSymbolLatest(symbols)
-
-console.log(`Found ${result.found} of ${result.requested} symbols`)
-result.prices.forEach(latest => {
-  console.log(`${latest.symbol}: $${latest.price} at ${latest.timestamp}`)
+const entities = ['sensor_001', 'sensor_002', 'sensor_003']
+const result = await client.getMultiEntityData(entities, {
+  from: new Date('2024-01-15T00:00:00Z'),
+  to: new Date('2024-01-15T23:59:59Z'),
+  limit: 1000
 })
+
+console.log(`Found ${result.length} records across ${entities.length} entities`)
 ```
 
 **Parameters:**
 
-- `symbols` (string[]): Array of symbols to query
+- `entity_ids` (string[]): Array of entity identifiers to query
+- `range` (TimeRange): Time range for query
+- `options` (SelectOptions, optional): Query configuration
 
-**Returns:** `Promise<MultiSymbolLatest>`
-
-```typescript
-interface MultiSymbolLatest {
-  readonly requested: number
-  readonly found: number
-  readonly prices: LatestPrice[]
-}
-```
+**Returns:** `Promise<TimeSeriesRecord[]>`
 
 ---
 
 ## Aggregation Operations
 
-### `getPriceDelta()`
+### `getAggregate()`
 
-Calculates absolute price change between two time points.
-
-```typescript
-const delta = await client.getPriceDelta('ETHUSD',
-  new Date('2024-01-15T09:00:00Z'),
-  new Date('2024-01-15T17:00:00Z')
-)
-
-console.log(`Price changed by $${delta.delta} (${delta.percentChange}%)`)
-```
-
-**Parameters:**
-
-- `symbol` (string): Symbol to analyze
-- `from` (Date): Start time
-- `to` (Date): End time
-
-**Returns:** `Promise<PriceDeltaResult>`
+Calculates aggregate statistics over a time period.
 
 ```typescript
-interface PriceDeltaResult {
-  readonly delta: number
-  readonly percentChange: number
-  readonly startPrice: number
-  readonly endPrice: number
-}
-```
-
-### `getVolatility()`
-
-Calculates price volatility (standard deviation) over a time period.
-
-```typescript
-// Get 24-hour volatility
-const volatility = await client.getVolatility('BTCUSD', 24)
-console.log(`24h volatility: ${volatility}`)
-```
-
-**Parameters:**
-
-- `symbol` (string): Symbol to analyze
-- `hours` (number): Time period in hours
-
-**Returns:** `Promise<number>`
-
-**Calculation:**
-
-- Uses PostgreSQL `stddev()` aggregate function
-- Calculates over price values within the time window
-- Returns 0 if insufficient data points
-
-### `getVwap()`
-
-Get VWAP (Volume Weighted Average Price) for time buckets.
-
-```typescript
-const vwapData = await client.getVwap('BTCUSD', '1h', {
+const avgTemp = await client.getAggregate('temp_sensor_01', 'avg', 'value', {
   from: new Date('2024-01-15T00:00:00Z'),
   to: new Date('2024-01-15T23:59:59Z')
 })
 
-vwapData.forEach(bucket => {
-  console.log(`${bucket.bucket}: VWAP = $${bucket.vwap}, Volume = ${bucket.volume}`)
+console.log(`Average temperature: ${avgTemp}°C`)
+```
+
+**Parameters:**
+
+- `entity_id` (string): Entity identifier to analyze
+- `aggregateFunction` ('avg' | 'min' | 'max' | 'sum' | 'count'): Aggregate function
+- `column` ('value' | 'value2' | 'value3' | 'value4'): Column to aggregate
+- `range` (TimeRange): Time range for analysis
+
+**Returns:** `Promise<number>`
+
+### `getTimeBuckets()`
+
+Groups data into time buckets with aggregation.
+
+```typescript
+const hourlyData = await client.getTimeBuckets('cpu_monitor', '1 hour', {
+  from: new Date('2024-01-15T00:00:00Z'),
+  to: new Date('2024-01-15T23:59:59Z'),
+  aggregateColumn: 'value',
+  aggregateFunction: 'avg'
+})
+
+hourlyData.forEach(bucket => {
+  console.log(`${bucket.bucket}: Avg CPU = ${bucket.value}%`)
 })
 ```
 
 **Parameters:**
 
-- `symbol` (string): Symbol to analyze
+- `entity_id` (string): Entity identifier to analyze
 - `bucketInterval` (string): Time bucket interval ('1m', '5m', '1h', etc.)
 - `range` (TimeRange): Time range for analysis
 - `options` (AggregationOptions, optional): Aggregation configuration
 
-**Returns:** `Promise<VwapResult[]>`
-
----
-
-## Analytics Operations
-
-### `calculateSMA()`
-
-Calculate Simple Moving Average.
+**Returns:** `Promise<TimeBucketResult[]>`
 
 ```typescript
-const sma = await client.calculateSMA('BTCUSD', 20, {
-  from: new Date('2024-01-01'),
-  to: new Date('2024-01-31')
-})
-
-sma.forEach(point => {
-  console.log(`${point.timestamp}: SMA(20) = $${point.value}`)
-})
+interface TimeBucketResult {
+  readonly bucket: Date
+  readonly entity_id: string
+  readonly value: number
+  readonly count: number
+}
 ```
 
-**Parameters:**
+**Implementation:**
 
-- `symbol` (string): Symbol to analyze
-- `period` (number): Period for moving average
-- `range` (TimeRange): Time range for analysis
-- `options` (AnalyticsOptions, optional): Analytics configuration
+- Uses `time_bucket()` for time-based aggregation
+- Employs `first()`, `last()`, `max()`, `min()`, `avg()` functions
+- Optimized for TimescaleDB's continuous aggregates
 
-**Returns:** `Promise<TechnicalIndicatorResult[]>`
+### `getStatistics()`
 
-### `calculateEMA()`
-
-Calculate Exponential Moving Average.
+Get comprehensive statistics for an entity over a time period.
 
 ```typescript
-const ema = await client.calculateEMA('BTCUSD', 20, {
-  from: new Date('2024-01-01'),
-  to: new Date('2024-01-31')
-})
-```
-
-**Parameters:**
-
-- `symbol` (string): Symbol to analyze
-- `period` (number): Period for moving average
-- `range` (TimeRange): Time range for analysis
-- `options` (AnalyticsOptions, optional): Analytics configuration
-
-**Returns:** `Promise<TechnicalIndicatorResult[]>`
-
-### `calculateRSI()`
-
-Calculate RSI (Relative Strength Index).
-
-```typescript
-const rsi = await client.calculateRSI('BTCUSD', 14, {
-  from: new Date('2024-01-01'),
-  to: new Date('2024-01-31')
-})
-
-rsi.forEach(point => {
-  console.log(`${point.timestamp}: RSI = ${point.rsi}`)
-})
-```
-
-**Parameters:**
-
-- `symbol` (string): Symbol to analyze
-- `period` (number): Period for RSI calculation
-- `range` (TimeRange): Time range for analysis
-- `options` (AnalyticsOptions, optional): Analytics configuration
-
-**Returns:** `Promise<RSIResult[]>`
-
-### `calculateBollingerBands()`
-
-Calculate Bollinger Bands.
-
-```typescript
-const bands = await client.calculateBollingerBands('BTCUSD', 20, 2, {
-  from: new Date('2024-01-01'),
-  to: new Date('2024-01-31')
-})
-
-bands.forEach(point => {
-  console.log(`${point.timestamp}: Upper=${point.upper}, Middle=${point.middle}, Lower=${point.lower}`)
-})
-```
-
-**Parameters:**
-
-- `symbol` (string): Symbol to analyze
-- `period` (number): Period for calculation
-- `stdDevMultiplier` (number): Standard deviation multiplier
-- `range` (TimeRange): Time range for analysis
-- `options` (AnalyticsOptions, optional): Analytics configuration
-
-**Returns:** `Promise<BollingerBandsResult[]>`
-
-### `getTopMovers()`
-
-Get symbols with the largest price movements.
-
-```typescript
-// Top 10 movers in last 24 hours
-const movers = await client.getTopMovers(10, 24)
-movers.forEach(mover => {
-  console.log(`${mover.symbol}: ${mover.percentChange.toFixed(2)}%`)
-})
-```
-
-**Parameters:**
-
-- `limit` (number, default: 10): Maximum number of results
-- `hours` (number, default: 24): Time period in hours
-- `options` (AnalyticsOptions, optional): Analytics configuration
-
-**Returns:** `Promise<TopMover[]>`
-
-### `getVolumeProfile()`
-
-Analyzes volume distribution across price levels.
-
-```typescript
-const profile = await client.getVolumeProfile('BTCUSD', {
+const stats = await client.getStatistics('sensor_001', {
   from: new Date('2024-01-15T00:00:00Z'),
   to: new Date('2024-01-15T23:59:59Z')
-}, 20)
-
-profile.forEach(level => {
-  console.log(`Price $${level.priceLevel}: Volume ${level.volume}`)
 })
+
+console.log(`Min: ${stats.min}, Max: ${stats.max}, Avg: ${stats.avg}`)
+console.log(`Std Dev: ${stats.stddev}, Count: ${stats.count}`)
 ```
 
 **Parameters:**
 
-- `symbol` (string): Symbol to analyze
+- `entity_id` (string): Entity identifier to analyze
 - `range` (TimeRange): Time range for analysis
-- `buckets` (number, default: 20): Number of price levels
-- `options` (AnalyticsOptions, optional): Analytics configuration
+- `options` (StatisticsOptions, optional): Statistics configuration
 
-**Returns:** `Promise<VolumeProfile[]>`
-
-### `findSupportResistanceLevels()`
-
-Find support and resistance levels.
+**Returns:** `Promise<StatisticsResult>`
 
 ```typescript
-const levels = await client.findSupportResistanceLevels('BTCUSD', {
-  from: new Date('2024-01-01'),
-  to: new Date('2024-01-31')
-}, 0.005, 3)
-
-levels.forEach(level => {
-  console.log(`${level.type} level at $${level.price} (${level.touches} touches)`)
-})
+interface StatisticsResult {
+  readonly entity_id: string
+  readonly min: number
+  readonly max: number
+  readonly avg: number
+  readonly sum: number
+  readonly count: number
+  readonly stddev: number
+  readonly variance: number
+}
 ```
-
-**Parameters:**
-
-- `symbol` (string): Symbol to analyze
-- `range` (TimeRange): Time range for analysis
-- `tolerance` (number, default: 0.005): Price tolerance (0.5%)
-- `minTouches` (number, default: 3): Minimum touches for level
-- `options` (AnalyticsOptions, optional): Analytics configuration
-
-**Returns:** `Promise<SupportResistanceLevel[]>`
-
-### `calculateCorrelation()`
-
-Calculate correlation between two symbols.
-
-```typescript
-const correlation = await client.calculateCorrelation('BTCUSD', 'ETHUSD', {
-  from: new Date('2024-01-01'),
-  to: new Date('2024-01-31')
-})
-
-console.log(`Correlation: ${correlation.correlation}`)
-console.log(`Samples: ${correlation.sampleSize}`)
-```
-
-**Parameters:**
-
-- `symbol1` (string): First symbol
-- `symbol2` (string): Second symbol
-- `range` (TimeRange): Time range for analysis
-- `options` (AnalyticsOptions, optional): Analytics configuration
-
-**Returns:** `Promise<CorrelationResult>`
 
 ---
 
 ## Streaming Operations
 
-### `getTicksStream()`
+### `getRecordStream()`
 
-Streams large tick datasets to avoid memory issues.
+Streams large datasets to avoid memory issues.
 
 ```typescript
-const tickStream = await client.getTicksStream('BTCUSD', {
+const recordStream = await client.getRecordStream('sensor_001', {
   from: new Date('2024-01-01'),
   to: new Date('2024-01-31')
 })
 
-for await (const tickBatch of tickStream) {
-  // Process batch of ticks without loading entire dataset into memory
-  console.log(`Processing batch of ${tickBatch.length} ticks`)
+for await (const recordBatch of recordStream) {
+  // Process batch of records without loading entire dataset into memory
+  console.log(`Processing batch of ${recordBatch.length} records`)
 
-  tickBatch.forEach(tick => {
-    console.log(`${tick.timestamp}: $${tick.price}`)
+  recordBatch.forEach(record => {
+    console.log(`${record.time}: ${record.value}`)
   })
 }
 ```
 
 **Parameters:**
 
-- `symbol` (string): Symbol to stream
+- `entity_id` (string): Entity identifier to stream
 - `range` (TimeRange): Time range for streaming
 - `options` (object, optional): Streaming options
   - `batchSize` (number): Size of each batch
 
-**Returns:** `Promise<AsyncIterable<PriceTick[]>>`
+**Returns:** `Promise<AsyncIterable<TimeSeriesRecord[]>>`
 
 **Benefits:**
 
@@ -733,34 +462,31 @@ for await (const tickBatch of tickStream) {
 - Uses postgres.js cursor functionality
 - Backpressure handling for rate-limited processing
 
-### `getOhlcStream()`
+### `insertRecordStream()`
 
-Stream OHLC data for large datasets.
+Stream large datasets for insertion without memory issues.
 
 ```typescript
-const ohlcStream = await client.getOhlcStream('BTCUSD', '1h', {
-  from: new Date('2024-01-01'),
-  to: new Date('2024-01-31')
-})
-
-for await (const candleBatch of ohlcStream) {
-  console.log(`Processing batch of ${candleBatch.length} candles`)
-
-  candleBatch.forEach(candle => {
-    console.log(`${candle.timestamp}: O=${candle.open}, H=${candle.high}, L=${candle.low}, C=${candle.close}`)
-  })
+async function* generateSensorData() {
+  for (let i = 0; i < 1000000; i++) {
+    yield {
+      entity_id: 'sensor_001',
+      time: new Date(Date.now() + i * 1000).toISOString(),
+      value: Math.random() * 100,
+      value2: Math.random() * 50
+    }
+  }
 }
+
+await client.insertRecordStream(generateSensorData())
 ```
 
 **Parameters:**
 
-- `symbol` (string): Symbol to stream
-- `interval` (TimeInterval): Time interval
-- `range` (TimeRange): Time range for streaming
-- `options` (object, optional): Streaming options
-  - `batchSize` (number): Size of each batch
+- `recordStream` (`AsyncIterable<TimeSeriesRecord>`): Stream of records to insert
+- `options` (StreamInsertOptions, optional): Insert configuration
 
-**Returns:** `Promise<AsyncIterable<Ohlc[]>>`
+**Returns:** `Promise<StreamResult>`
 
 ---
 
@@ -779,10 +505,48 @@ await client.ensureSchema()
 
 **Operations:**
 
-- Creates `price_ticks` and `ohlc_data` hypertables
+- Creates `time_series_data` and `entities` hypertables
 - Sets up optimized indexes
 - Configures TimescaleDB-specific settings
 - Validates existing schema compatibility
+
+### `createHypertable()`
+
+Creates a TimescaleDB hypertable with specified configuration.
+
+```typescript
+await client.createHypertable('custom_metrics', {
+  timeColumn: 'timestamp',
+  chunkTimeInterval: '1 day',
+  partitioningColumn: 'device_id'
+})
+```
+
+**Parameters:**
+
+- `tableName` (string): Name of the table to convert
+- `options` (HypertableOptions): Hypertable configuration
+
+**Returns:** `Promise<void>`
+
+### `enableCompression()`
+
+Enables compression for a hypertable to reduce storage usage.
+
+```typescript
+await client.enableCompression('time_series_data', {
+  compressAfter: '7 days',
+  segmentBy: 'entity_id',
+  orderBy: 'time DESC'
+})
+```
+
+**Parameters:**
+
+- `tableName` (string): Name of the hypertable
+- `options` (CompressionOptions): Compression configuration
+
+**Returns:** `Promise<void>`
 
 ### `getSchemaInfo()`
 
@@ -825,10 +589,10 @@ import {
   QueryError,
   ConnectionError,
   BatchError
-} from 'timescaledb-client'
+} from '@timescale/client'
 
 try {
-  await client.insertTick(invalidTick)
+  await client.insertRecord(invalidRecord)
 } catch (error) {
   if (error instanceof ValidationError) {
     console.error(`Validation failed: ${error.field} = ${error.value}`)
@@ -845,7 +609,7 @@ try {
 ### Error Utilities
 
 ```typescript
-import { ErrorUtils } from 'timescaledb-client'
+import { ErrorUtils } from '@timescale/client'
 
 // Check if error is retryable
 if (ErrorUtils.isRetryableError(error)) {
@@ -886,24 +650,14 @@ const client = new TimescaleClient(sql, {
 ### Core Data Types
 
 ```typescript
-interface PriceTick {
-  readonly symbol: string
-  readonly price: number
-  readonly volume?: number
-  readonly timestamp: string // ISO 8601 format
-  readonly exchange?: string
-  readonly dataSource?: string
-}
-
-interface Ohlc {
-  readonly symbol: string
-  readonly timestamp: string
-  readonly open: number
-  readonly high: number
-  readonly low: number
-  readonly close: number
-  readonly volume?: number
-  readonly interval?: TimeInterval
+interface TimeSeriesRecord {
+  readonly entity_id: string
+  readonly time: string // ISO 8601 format
+  readonly value: number
+  readonly value2?: number
+  readonly value3?: number
+  readonly value4?: number
+  readonly metadata?: Record<string, any>
 }
 
 interface TimeRange {
@@ -912,7 +666,15 @@ interface TimeRange {
   readonly limit?: number // Max: 10000
 }
 
-type TimeInterval = '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d' | '1w'
+interface Entity {
+  readonly entity_id: string
+  readonly entity_type: string
+  readonly name?: string
+  readonly is_active: boolean
+  readonly metadata?: Record<string, any>
+  readonly created_at: Date
+  readonly updated_at: Date
+}
 ```
 
 ### Result Types
@@ -925,76 +687,29 @@ interface BatchResult {
   readonly errors: Error[]
 }
 
-interface LatestPrice {
-  readonly symbol: string
-  readonly price: number
-  readonly timestamp: Date
-  readonly volume?: number
-}
-
-interface MultiSymbolLatest {
-  readonly requested: number
-  readonly found: number
-  readonly prices: LatestPrice[]
-}
-
-interface VolumeProfile {
-  readonly priceLevel: number
-  readonly volume: number
-  readonly tradeCount: number
-  readonly percentageOfTotal: number
-}
-
-interface TopMover {
-  readonly symbol: string
-  readonly currentPrice: number
-  readonly previousPrice: number
-  readonly absoluteChange: number
-  readonly percentChange: number
-  readonly volume: number
-}
-```
-
-### Analytics Types
-
-```typescript
-interface TechnicalIndicatorResult {
-  readonly timestamp: Date
+interface TimeBucketResult {
+  readonly bucket: Date
+  readonly entity_id: string
   readonly value: number
-  readonly symbol: string
+  readonly count: number
 }
 
-interface RSIResult {
-  readonly timestamp: Date
-  readonly rsi: number
-  readonly signal: 'oversold' | 'overbought' | 'neutral'
-  readonly symbol: string
+interface StatisticsResult {
+  readonly entity_id: string
+  readonly min: number
+  readonly max: number
+  readonly avg: number
+  readonly sum: number
+  readonly count: number
+  readonly stddev: number
+  readonly variance: number
 }
 
-interface BollingerBandsResult {
-  readonly timestamp: Date
-  readonly upper: number
-  readonly middle: number
-  readonly lower: number
-  readonly bandwidth: number
-  readonly symbol: string
-}
-
-interface SupportResistanceLevel {
-  readonly type: 'support' | 'resistance'
-  readonly price: number
-  readonly touches: number
-  readonly strength: number
-  readonly firstTouch: Date
-  readonly lastTouch: Date
-}
-
-interface CorrelationResult {
-  readonly correlation: number
-  readonly sampleSize: number
-  readonly significance: number
-  readonly symbol1: string
-  readonly symbol2: string
+interface StreamResult {
+  readonly totalProcessed: number
+  readonly totalFailed: number
+  readonly durationMs: number
+  readonly errors: Error[]
 }
 ```
 
@@ -1008,9 +723,6 @@ interface CorrelationResult {
 interface TimescaleClientConfig extends ClientOptions {
   /** Whether to automatically ensure schema on initialization */
   readonly autoEnsureSchema?: boolean
-
-  /** Custom interval duration for OHLC data (default: '1m') */
-  readonly defaultInterval?: TimeInterval
 
   /** Whether to enable query statistics collection */
   readonly enableQueryStats?: boolean
@@ -1091,35 +803,15 @@ interface SelectOptions {
   readonly where?: Record<string, any>
   readonly includeStats?: boolean
   readonly includeMetadata?: boolean
-  readonly customOrderBy?: string
   readonly useStreaming?: boolean
 }
 
 interface AggregationOptions {
-  readonly limit?: number
-  readonly offset?: number
-  readonly orderBy?: {
-    readonly column: string
-    readonly direction: 'asc' | 'desc'
-  }
-  readonly where?: Record<string, any>
-  readonly includeStats?: boolean
+  readonly aggregateColumn?: 'value' | 'value2' | 'value3' | 'value4'
+  readonly aggregateFunction?: 'avg' | 'min' | 'max' | 'sum' | 'count'
   readonly fillGaps?: boolean
   readonly fillValue?: number | null
   readonly includeMetadata?: boolean
-}
-
-interface AnalyticsOptions {
-  readonly limit?: number
-  readonly offset?: number
-  readonly orderBy?: {
-    readonly column: string
-    readonly direction: 'asc' | 'desc'
-  }
-  readonly where?: Record<string, any>
-  readonly includeStats?: boolean
-  readonly minVolume?: number
-  readonly smoothingFactor?: number
 }
 ```
 
@@ -1132,11 +824,11 @@ interface AnalyticsOptions {
 ```typescript
 // Optimal batch sizes by operation type
 const client = new TimescaleClient(sql, {
-  defaultBatchSize: 5000 // For high-frequency tick data
+  defaultBatchSize: 5000 // For high-frequency sensor data
 })
 
-// Smaller batches for OHLC data
-const result = await client.insertManyOhlc(candles, { batchSize: 1000 })
+// Smaller batches for complex records with metadata
+const result = await client.insertManyRecords(records, { batchSize: 1000 })
 ```
 
 ### Query Result Limits
@@ -1146,13 +838,13 @@ const result = await client.insertManyOhlc(candles, { batchSize: 1000 })
 const STREAMING_THRESHOLD = 10000
 
 if (expectedRows > STREAMING_THRESHOLD) {
-  const stream = await client.getTicksStream(symbol, range)
+  const stream = await client.getRecordStream(entity_id, range)
   // Process streaming
   for await (const batch of stream) {
     // Process batch
   }
 } else {
-  const ticks = await client.getTicks(symbol, range)
+  const records = await client.getRecords(entity_id, range)
   // Process in memory
 }
 ```
@@ -1161,16 +853,16 @@ if (expectedRows > STREAMING_THRESHOLD) {
 
 The client is designed to leverage specific indexes for optimal performance:
 
-- **Symbol + Time queries**: Uses `ix_price_ticks_symbol_time`
-- **Time range scans**: Uses `ix_price_ticks_time`
-- **Volume analysis**: Uses `ix_price_ticks_volume_time`
+- **Entity + Time queries**: Uses `ix_time_series_data_entity_id_time`
+- **Time range scans**: Uses `ix_time_series_data_time`
+- **Value analysis**: Uses `ix_time_series_data_value_time`
 - **Recent data**: Uses partial indexes for hot data
 
 ### Memory Management
 
 ```typescript
 // For large datasets, use streaming
-const stream = await client.getTicksStream('BTCUSD', {
+const stream = await client.getRecordStream('sensor_001', {
   from: new Date('2024-01-01'),
   to: new Date('2024-12-31')
 })
@@ -1222,10 +914,10 @@ if (!health.isHealthy) {
 
 ```typescript
 // Implement comprehensive error handling
-import { ValidationError, QueryError, ConnectionError } from 'timescaledb-client'
+import { ValidationError, QueryError, ConnectionError } from '@timescale/client'
 
 try {
-  await client.insertTick(tick)
+  await client.insertRecord(record)
 } catch (error) {
   if (error instanceof ValidationError) {
     // Handle validation errors
@@ -1274,4 +966,4 @@ const client = await ClientFactory.fromConnectionString(connectionString, {
 
 ---
 
-This API reference provides comprehensive documentation for all public methods and types in the TimescaleDB client. For additional examples and use cases, see the [Getting Started Guide](GETTING_STARTED.md) and the [examples directory](../examples/).
+This API reference provides comprehensive documentation for all public methods and types in the clean TimescaleDB client. For additional examples and use cases, see the [Getting Started Guide](GETTING_STARTED.md) and explore the generic time-series interface for your specific domain needs.

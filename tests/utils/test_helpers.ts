@@ -1,413 +1,430 @@
 /**
- * Test helper utilities
+ * Common testing utilities and setup functions for TimescaleDB client tests
+ *
+ * Provides standardized test setup, assertion helpers, and utility functions
+ * following the project's testing patterns with describe/it from @std/testing/bdd.
  */
 
-import type { Ohlc, PriceTick, TimeRange } from '../../src/types/interfaces.ts'
+import { afterEach, beforeEach, describe } from '@std/testing/bdd'
+import { assert, assertEquals, assertExists, assertInstanceOf } from '@std/assert'
+import type { ClientOptions, ConnectionConfig, Logger } from '../../src/types/config.ts'
+import { createPostgresMock, type ExtendedMockSql, type MockQueryResult } from '../mocks/postgres_mock.ts'
 
 /**
- * Test environment interface for integration tests
+ * Test configuration factory
  */
-export interface TestEnvironment {
-  cleanup: () => Promise<void>
-  config: {
-    host: string
-    port: number
-    database: string
-  }
+export interface TestConfig {
+  readonly connection: ConnectionConfig
+  readonly clientOptions: ClientOptions
+  readonly logger?: TestLogger
 }
 
 /**
- * Simple logger for testing that captures log messages
+ * Test logger implementation
  */
-export interface LogEntry {
-  level: string
-  message: string
-  meta?: Record<string, unknown>
-}
-
-export class TestLogger {
-  private logs: LogEntry[] = []
+export class TestLogger implements Logger {
+  private logs: Array<{ level: string; message: string; meta?: Record<string, unknown>; error?: Error }> = []
 
   debug(message: string, meta?: Record<string, unknown>): void {
-    this.logs.push({ level: 'debug', message, ...(meta ? { meta } : {}) })
+    const logEntry: { level: string; message: string; meta?: Record<string, unknown> } = { level: 'debug', message }
+    if (meta !== undefined) {
+      logEntry.meta = meta
+    }
+    this.logs.push(logEntry)
   }
 
   info(message: string, meta?: Record<string, unknown>): void {
-    this.logs.push({ level: 'info', message, ...(meta ? { meta } : {}) })
+    const logEntry: { level: string; message: string; meta?: Record<string, unknown> } = { level: 'info', message }
+    if (meta !== undefined) {
+      logEntry.meta = meta
+    }
+    this.logs.push(logEntry)
   }
 
   warn(message: string, meta?: Record<string, unknown>): void {
-    this.logs.push({ level: 'warn', message, ...(meta ? { meta } : {}) })
+    const logEntry: { level: string; message: string; meta?: Record<string, unknown> } = { level: 'warn', message }
+    if (meta !== undefined) {
+      logEntry.meta = meta
+    }
+    this.logs.push(logEntry)
   }
 
-  error(message: string, error?: Error): void {
-    this.logs.push({
+  error(message: string, error?: Error, meta?: Record<string, unknown>): void {
+    const logEntry: { level: string; message: string; error?: Error; meta?: Record<string, unknown> } = {
       level: 'error',
       message,
-      ...(error ? { meta: { error: error.message, stack: error.stack } } : {}),
-    })
+    }
+    if (error !== undefined) {
+      logEntry.error = error
+    }
+    if (meta !== undefined) {
+      logEntry.meta = meta
+    }
+    this.logs.push(logEntry)
   }
 
-  getLogs(): LogEntry[] {
+  /**
+   * Get all captured logs
+   */
+  getLogs(): Array<{ level: string; message: string; meta?: Record<string, unknown>; error?: Error }> {
     return [...this.logs]
   }
 
-  getLogsByLevel(level: string): LogEntry[] {
+  /**
+   * Get logs filtered by level
+   */
+  getLogsByLevel(
+    level: string,
+  ): Array<{ level: string; message: string; meta?: Record<string, unknown>; error?: Error }> {
     return this.logs.filter((log) => log.level === level)
   }
 
-  clear(): void {
+  /**
+   * Clear all logs
+   */
+  clearLogs(): void {
     this.logs = []
   }
 
-  hasErrorLogs(): boolean {
-    return this.logs.some((log) => log.level === 'error')
-  }
-
-  getErrorMessages(): string[] {
-    return this.logs
-      .filter((log) => log.level === 'error')
-      .map((log) => log.message)
-  }
-}
-
-/**
- * Test assertion helpers
- */
-export function assertValidPriceTick(tick: PriceTick): void {
-  if (!tick.symbol || tick.symbol.length === 0) {
-    throw new Error('PriceTick must have a valid symbol')
-  }
-
-  if (typeof tick.price !== 'number' || tick.price <= 0) {
-    throw new Error('PriceTick must have a positive price')
-  }
-
-  if (tick.volume !== undefined && (typeof tick.volume !== 'number' || tick.volume < 0)) {
-    throw new Error('PriceTick volume must be a non-negative number')
-  }
-
-  if (!tick.timestamp) {
-    throw new Error('PriceTick must have a timestamp')
-  }
-
-  // Validate timestamp format
-  const date = new Date(tick.timestamp)
-  if (isNaN(date.getTime())) {
-    throw new Error('PriceTick timestamp must be a valid date')
-  }
-}
-
-export function assertValidOhlc(ohlc: Ohlc): void {
-  if (!ohlc.symbol || ohlc.symbol.length === 0) {
-    throw new Error('OHLC must have a valid symbol')
-  }
-
-  if (typeof ohlc.open !== 'number' || ohlc.open <= 0) {
-    throw new Error('OHLC open price must be positive')
-  }
-
-  if (typeof ohlc.high !== 'number' || ohlc.high <= 0) {
-    throw new Error('OHLC high price must be positive')
-  }
-
-  if (typeof ohlc.low !== 'number' || ohlc.low <= 0) {
-    throw new Error('OHLC low price must be positive')
-  }
-
-  if (typeof ohlc.close !== 'number' || ohlc.close <= 0) {
-    throw new Error('OHLC close price must be positive')
-  }
-
-  // Validate OHLC relationships
-  if (ohlc.high < ohlc.low) {
-    throw new Error('OHLC high must be >= low')
-  }
-
-  if (ohlc.high < ohlc.open || ohlc.high < ohlc.close) {
-    throw new Error('OHLC high must be >= open and close')
-  }
-
-  if (ohlc.low > ohlc.open || ohlc.low > ohlc.close) {
-    throw new Error('OHLC low must be <= open and close')
-  }
-
-  if (ohlc.volume !== undefined && (typeof ohlc.volume !== 'number' || ohlc.volume < 0)) {
-    throw new Error('OHLC volume must be a non-negative number')
-  }
-}
-
-export function assertValidTimeRange(range: TimeRange): void {
-  if (!range.from || !range.to) {
-    throw new Error('TimeRange must have both from and to dates')
-  }
-
-  if (!(range.from instanceof Date) || !(range.to instanceof Date)) {
-    throw new Error('TimeRange from and to must be Date objects')
-  }
-
-  if (range.from >= range.to) {
-    throw new Error('TimeRange from must be before to')
+  /**
+   * Check if a specific message was logged
+   */
+  hasLogMessage(message: string, level?: string): boolean {
+    return this.logs.some((log) =>
+      log.message.includes(message) &&
+      (level ? log.level === level : true)
+    )
   }
 }
 
 /**
- * Data validation helpers
+ * Create a test configuration with sensible defaults
  */
-export function isValidPrice(price: number): boolean {
-  return typeof price === 'number' && price > 0 && isFinite(price)
-}
+export function createTestConfig(overrides: Partial<TestConfig> = {}): TestConfig {
+  const defaultConnection: ConnectionConfig = {
+    host: 'localhost',
+    port: 5432,
+    database: 'timescale_test',
+    username: 'test_user',
+    password: 'test_password',
+    maxConnections: 5,
+    connectTimeout: 10,
+    debug: false,
+  }
 
-export function isValidVolume(volume: number | undefined): boolean {
-  return volume === undefined || (typeof volume === 'number' && volume >= 0 && isFinite(volume))
-}
+  const defaultClientOptions: ClientOptions = {
+    defaultBatchSize: 100,
+    maxRetries: 1,
+    retryBaseDelay: 100,
+    queryTimeout: 5000,
+    autoCreateTables: true,
+    validateInputs: true,
+    collectStats: false,
+  }
 
-export function isValidSymbol(symbol: string): boolean {
-  return typeof symbol === 'string' &&
-    symbol.length > 0 &&
-    symbol.length <= 20 &&
-    /^[A-Z0-9_]+$/.test(symbol)
-}
-
-export function isValidTimestamp(timestamp: string): boolean {
-  if (typeof timestamp !== 'string') return false
-  const date = new Date(timestamp)
-  return !isNaN(date.getTime())
+  return {
+    connection: { ...defaultConnection, ...overrides.connection },
+    clientOptions: { ...defaultClientOptions, ...overrides.clientOptions },
+    logger: overrides.logger || new TestLogger(),
+  }
 }
 
 /**
- * Generate test data with realistic patterns
+ * Mock SQL instance with extended testing capabilities
  */
-export function generateRandomPrice(basePrice: number, volatility: number = 0.02): number {
-  const change = (Math.random() - 0.5) * 2 * volatility
-  return Math.max(basePrice * (1 + change), 0.01)
-}
-
-export function generateRandomVolume(baseVolume: number = 1.0): number {
-  return baseVolume * (0.1 + Math.random() * 1.9) // 0.1x to 2.0x base volume
+export function createMockSql(): ExtendedMockSql {
+  return createPostgresMock() as ExtendedMockSql
 }
 
 /**
- * Time utilities
+ * Setup common test environment
  */
-export function addMinutes(date: Date, minutes: number): Date {
-  return new Date(date.getTime() + minutes * 60 * 1000)
-}
-
-export function addHours(date: Date, hours: number): Date {
-  return new Date(date.getTime() + hours * 60 * 60 * 1000)
-}
-
-export function addDays(date: Date, days: number): Date {
-  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000)
-}
-
-export function truncateToMinute(date: Date): Date {
-  const truncated = new Date(date)
-  truncated.setSeconds(0, 0)
-  return truncated
-}
-
-export function truncateToHour(date: Date): Date {
-  const truncated = new Date(date)
-  truncated.setMinutes(0, 0, 0)
-  return truncated
+export interface TestEnvironment {
+  readonly mockSql: ExtendedMockSql
+  readonly config: TestConfig
+  readonly logger: TestLogger
 }
 
 /**
- * Mock data quality checks
+ * Create a complete test environment
  */
-export function validateMarketData(ticks: PriceTick[]): void {
-  if (ticks.length === 0) return
+export function createTestEnvironment(configOverrides: Partial<TestConfig> = {}): TestEnvironment {
+  const config = createTestConfig(configOverrides)
+  const mockSql = createMockSql()
+  const logger = config.logger instanceof TestLogger ? config.logger : new TestLogger()
 
-  // Check temporal ordering
-  let previousTime = new Date(ticks[0]!.timestamp).getTime()
-  for (let i = 1; i < ticks.length; i++) {
-    const currentTime = new Date(ticks[i]!.timestamp).getTime()
-    if (currentTime <= previousTime) {
-      throw new Error(`Tick ${i} timestamp is not after previous tick`)
-    }
-    previousTime = currentTime
-  }
-
-  // Check symbol consistency
-  const symbol = ticks[0]!.symbol
-  for (const tick of ticks) {
-    if (tick.symbol !== symbol) {
-      throw new Error('All ticks must have the same symbol')
-    }
-  }
-
-  // Check price movements are reasonable (no more than 50% change between ticks)
-  for (let i = 1; i < ticks.length; i++) {
-    const prev = ticks[i - 1]!
-    const curr = ticks[i]!
-    const changePercent = Math.abs(curr.price - prev.price) / prev.price
-
-    if (changePercent > 0.5) {
-      throw new Error(`Unrealistic price movement between tick ${i - 1} and ${i}: ${changePercent * 100}%`)
-    }
+  return {
+    mockSql,
+    config: { ...config, logger },
+    logger,
   }
 }
 
-export function validateOhlcConsistency(candles: Ohlc[]): void {
-  for (const ohlc of candles) {
-    assertValidOhlc(ohlc)
-  }
+/**
+ * Common assertion helpers
+ */
+export const TestAssertions = {
+  /**
+   * Assert that a query was captured by the mock
+   */
+  assertQueryCaptured(mockSql: ExtendedMockSql, expectedSql: string): void {
+    const queries = mockSql.getCapturedQueries()
+    const found = queries.some((query) => query.sql.toLowerCase().includes(expectedSql.toLowerCase()))
+    assert(
+      found,
+      `Expected query containing "${expectedSql}" to be captured. Captured queries: ${
+        JSON.stringify(queries.map((q) => q.sql))
+      }`,
+    )
+  },
 
-  // Check temporal ordering
-  if (candles.length > 1) {
-    let previousTime = new Date(candles[0]!.timestamp).getTime()
-    for (let i = 1; i < candles.length; i++) {
-      const currentTime = new Date(candles[i]!.timestamp).getTime()
-      if (currentTime <= previousTime) {
-        throw new Error(`Candle ${i} timestamp is not after previous candle`)
+  /**
+   * Assert that a specific number of queries were captured
+   */
+  assertQueryCount(mockSql: ExtendedMockSql, expectedCount: number): void {
+    const queries = mockSql.getCapturedQueries()
+    assertEquals(queries.length, expectedCount, `Expected ${expectedCount} queries, but got ${queries.length}`)
+  },
+
+  /**
+   * Assert that no queries were captured
+   */
+  assertNoQueriesCaptured(mockSql: ExtendedMockSql): void {
+    TestAssertions.assertQueryCount(mockSql, 0)
+  },
+
+  /**
+   * Assert that a log message was recorded
+   */
+  assertLogMessage(logger: TestLogger, message: string, level?: string): void {
+    assert(
+      logger.hasLogMessage(message, level),
+      `Expected log message "${message}"${level ? ` with level "${level}"` : ''} to be recorded`,
+    )
+  },
+
+  /**
+   * Assert that an error was thrown with a specific message
+   */
+  async assertThrowsWithMessage(
+    fn: () => Promise<unknown> | unknown,
+    expectedMessage: string,
+  ): Promise<void> {
+    let thrownError: Error | undefined
+
+    try {
+      const result = fn()
+      if (result instanceof Promise) {
+        await result
       }
-      previousTime = currentTime
+    } catch (error) {
+      thrownError = error as Error
     }
-  }
-}
 
-/**
- * Performance testing helpers
- */
-export interface PerformanceMetrics {
-  durationMs: number
-  operationsPerSecond: number
-  avgLatencyMs: number
-  minLatencyMs: number
-  maxLatencyMs: number
-}
-
-export async function measurePerformance<T>(
-  operation: () => Promise<T>,
-  iterations: number = 100,
-): Promise<{ result: T; metrics: PerformanceMetrics }> {
-  const latencies: number[] = []
-  let result: T | undefined
-
-  const startTime = performance.now()
-
-  for (let i = 0; i < iterations; i++) {
-    const iterStartTime = performance.now()
-    result = await operation()
-    const iterEndTime = performance.now()
-    latencies.push(iterEndTime - iterStartTime)
-  }
-
-  const endTime = performance.now()
-  const totalDuration = endTime - startTime
-
-  const metrics: PerformanceMetrics = {
-    durationMs: totalDuration,
-    operationsPerSecond: iterations / (totalDuration / 1000),
-    avgLatencyMs: latencies.reduce((sum, lat) => sum + lat, 0) / latencies.length,
-    minLatencyMs: Math.min(...latencies),
-    maxLatencyMs: Math.max(...latencies),
-  }
-
-  return { result: result!, metrics }
-}
-
-/**
- * Async testing utilities
- */
-export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-export function timeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)), timeoutMs)
-    ),
-  ])
-}
-
-/**
- * Test helper class - exported as TestHelpers
- */
-export class TestHelpers {
-  static createLogger(): TestLogger {
-    return new TestLogger()
-  }
-
-  static validatePriceTick = assertValidPriceTick
-  static validateOhlc = assertValidOhlc
-  static validateTimeRange = assertValidTimeRange
-
-  static generateRandomPrice = generateRandomPrice
-  static generateRandomVolume = generateRandomVolume
-
-  static addMinutes = addMinutes
-  static addHours = addHours
-  static addDays = addDays
-
-  static truncateToMinute = truncateToMinute
-  static truncateToHour = truncateToHour
-
-  static validateMarketData = validateMarketData
-  static validateOhlcConsistency = validateOhlcConsistency
-
-  static measurePerformance = measurePerformance
-  static sleep = sleep
-  static timeout = timeout
+    assertExists(thrownError, 'Expected function to throw an error')
+    assert(
+      thrownError.message.includes(expectedMessage),
+      `Expected error message to contain "${expectedMessage}", but got "${thrownError.message}"`,
+    )
+  },
 
   /**
-   * Create test environment for integration tests
+   * Assert that a value is a valid timestamp
    */
-  static createTestEnvironment(): TestEnvironment {
-    return {
-      cleanup: () => Promise.resolve(),
-      config: {
-        host: 'localhost',
-        port: 5432,
-        database: 'test_db',
+  assertValidTimestamp(value: unknown): void {
+    assertInstanceOf(value, Date)
+    assert(!isNaN((value as Date).getTime()), 'Expected valid timestamp')
+  },
+
+  /**
+   * Assert that a value is a valid entity ID
+   */
+  assertValidEntityId(entityId: unknown): void {
+    assert(typeof entityId === 'string', 'Entity ID must be a string')
+    assert(entityId.length > 0, 'Entity ID must not be empty')
+    assert(
+      /^[a-zA-Z0-9_-]+$/.test(entityId),
+      'Entity ID must contain only alphanumeric characters, underscores, and dashes',
+    )
+  },
+
+  /**
+   * Assert that a value is a finite number
+   */
+  assertValidValue(value: unknown): void {
+    assert(typeof value === 'number', 'Value must be a number')
+    assert(Number.isFinite(value), 'Value must be finite')
+  },
+}
+
+/**
+ * Time-related test utilities
+ */
+export const TimeUtils = {
+  /**
+   * Create a timestamp string for testing
+   */
+  createTimestamp(offsetMinutes = 0): string {
+    const date = new Date()
+    date.setMinutes(date.getMinutes() + offsetMinutes)
+    return date.toISOString()
+  },
+
+  /**
+   * Create a date range for testing
+   */
+  createTimeRange(
+    startOffsetMinutes = -60,
+    endOffsetMinutes = 0,
+  ): { from: Date; to: Date } {
+    const now = new Date()
+    const from = new Date(now.getTime() + startOffsetMinutes * 60 * 1000)
+    const to = new Date(now.getTime() + endOffsetMinutes * 60 * 1000)
+    return { from, to }
+  },
+
+  /**
+   * Create a series of timestamps
+   */
+  createTimestampSeries(count: number, intervalMinutes = 1): string[] {
+    const timestamps: string[] = []
+    for (let i = 0; i < count; i++) {
+      timestamps.push(TimeUtils.createTimestamp(i * intervalMinutes))
+    }
+    return timestamps
+  },
+}
+
+/**
+ * Common test setup and teardown
+ */
+export const TestSetup = {
+  /**
+   * Setup function for database tests
+   */
+  setupDatabaseTest(): TestEnvironment {
+    const env = createTestEnvironment({
+      clientOptions: {
+        autoCreateTables: true,
+        validateInputs: true,
+        maxRetries: 1,
+        queryTimeout: 5000,
       },
-    }
-  }
+    })
+
+    // Setup common mock responses
+    env.mockSql.setMockResult('SELECT 1', [{ test: 1 }])
+    env.mockSql.setMockResult('SELECT version()', [{ version: 'PostgreSQL 14.0' }])
+    env.mockSql.setMockResult('SELECT timescaledb_version()', [{ timescaledb_version: '2.8.0' }])
+
+    return env
+  },
 
   /**
-   * Cleanup test environment
+   * Cleanup function for tests
    */
-  static cleanupTestEnvironment(env: TestEnvironment): Promise<void> {
-    return env?.cleanup ? env.cleanup() : Promise.resolve()
-  }
+  cleanupTest(env: TestEnvironment): void {
+    env.mockSql.reset()
+    env.logger.clearLogs()
+  },
+
+  /**
+   * Create a describe block with automatic setup/cleanup
+   */
+  describeWithSetup(
+    name: string,
+    setupFn: () => TestEnvironment,
+    testFn: (getEnv: () => TestEnvironment) => void,
+  ): void {
+    describe(name, () => {
+      let env: TestEnvironment
+
+      beforeEach(() => {
+        env = setupFn()
+      })
+
+      afterEach(() => {
+        if (env) {
+          TestSetup.cleanupTest(env)
+        }
+      })
+
+      testFn(() => env)
+    })
+  },
 }
 
 /**
- * Timing helper class - exported as TimingHelpers
+ * Mock result builders for common queries
  */
-export class TimingHelpers {
-  static sleep = sleep
-  static timeout = timeout
-  static addMinutes = addMinutes
-  static addHours = addHours
-  static addDays = addDays
-  static truncateToMinute = truncateToMinute
-  static truncateToHour = truncateToHour
-  static measurePerformance = measurePerformance
+export const MockResultBuilders = {
+  /**
+   * Build a mock result for health check queries
+   */
+  healthCheck(): MockQueryResult {
+    return [{ test: 1, version: 'PostgreSQL 14.0 on TimescaleDB 2.8.0' }] as MockQueryResult
+  },
 
   /**
-   * Assert execution time is within bounds
+   * Build a mock result for TimescaleDB extension queries
    */
-  static async assertExecutionTime<T>(
-    operation: () => Promise<T>,
-    maxTimeMs: number,
-    errorMessage?: string,
-  ): Promise<T> {
-    const startTime = performance.now()
-    const result = await operation()
-    const endTime = performance.now()
-    const duration = endTime - startTime
+  timescaleExtension(): MockQueryResult {
+    return [
+      { extname: 'timescaledb', extversion: '2.8.0' },
+      { extname: 'pg_stat_statements', extversion: '1.9' },
+    ] as MockQueryResult
+  },
 
-    if (duration > maxTimeMs) {
-      throw new Error(
-        errorMessage || `Operation took ${duration}ms, expected ≤ ${maxTimeMs}ms`,
-      )
-    }
+  /**
+   * Build a mock result for table existence queries
+   */
+  existingTables(): MockQueryResult {
+    return [
+      { tablename: 'time_series_data' },
+      { tablename: 'entities' },
+    ] as MockQueryResult
+  },
 
+  /**
+   * Build a mock result for hypertable queries
+   */
+  hypertables(): MockQueryResult {
+    return [
+      { hypertable_name: 'time_series_data', num_dimensions: 1, compression_enabled: true },
+    ] as MockQueryResult
+  },
+
+  /**
+   * Build a mock result for successful insert/update operations
+   */
+  successfulOperation(command: 'INSERT' | 'UPDATE' | 'DELETE', count = 1): MockQueryResult {
+    const result = [] as MockQueryResult
+    result.command = command
+    result.count = count
     return result
-  }
+  },
+
+  /**
+   * Build an empty result set
+   */
+  emptyResult(): MockQueryResult {
+    const result = [] as MockQueryResult
+    result.command = 'SELECT'
+    result.count = 0
+    return result
+  },
+}
+
+/**
+ * Export all utilities as a single namespace
+ */
+export const TestUtils = {
+  createTestConfig,
+  createMockSql,
+  createTestEnvironment,
+  TestAssertions,
+  TimeUtils,
+  TestSetup,
+  MockResultBuilders,
+  TestLogger,
 }

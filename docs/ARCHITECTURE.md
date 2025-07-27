@@ -1,395 +1,637 @@
-# TimescaleDB Client - File Structure & Organization Plan
+# TimescaleDB Client - Architecture & Design
 
 ## Overview
 
-This document outlines the complete file structure for the TimescaleDB client implementation, following the architectural principles defined in LLM.md.
+This document outlines the complete architecture for the TimescaleDB client implementation, following clean, unopinionated design principles for time-series data operations.
 
-## Project Root Structure
+## Design Principles
 
-```
+### 1. Domain Agnostic
+
+- **Universal Interface**: Generic `TimeSeriesRecord` suitable for any domain
+- **No Business Logic**: Pure data operations without domain assumptions
+- **Flexible Schema**: Support for multiple values and arbitrary metadata
+
+### 2. TimescaleDB Native
+
+- **Hypertable Optimization**: Leverages TimescaleDB's time-based partitioning
+- **Compression Support**: Automatic compression for efficient storage
+- **Continuous Aggregates**: Real-time materialized views for analytics
+- **Index Strategy**: Optimized for time-series query patterns
+
+### 3. Performance First
+
+- **Batch Operations**: Efficient bulk operations for high throughput
+- **Streaming Support**: Memory-efficient processing of large datasets
+- **Connection Pooling**: Optimized postgres.js integration
+- **Query Optimization**: Leverages TimescaleDB's built-in functions
+
+## Project Structure
+
+```text
 timescaledb-client/
 ├── mod.ts                      # Main module exports
 ├── deno.json                   # Deno configuration
 ├── deno.lock                   # Dependency lock file
-├── LLM.md                      # Project development guidelines
 ├── README.md                   # Project documentation
 ├── LICENSE                     # MIT license
 ├── .gitignore                  # Git ignore patterns
 ├── CHANGELOG.md                # Version history
 ├── docs/                       # Documentation directory
 │   ├── ARCHITECTURE.md         # This file - architecture documentation
-│   ├── API.md                  # API reference documentation
-│   ├── SCHEMA.md               # Database schema documentation
-│   └── examples/               # Usage examples
-│       ├── basic-usage.ts      # Basic client usage
-│       ├── batch-operations.ts # Batch insert examples
-│       └── aggregations.ts     # Query and aggregation examples
+│   ├── API_REFERENCE.md        # API reference documentation
+│   ├── GETTING_STARTED.md      # Getting started guide
+│   ├── TECHNICAL_SPECIFICATION.md # Technical implementation details
+│   └── DEPLOYMENT.md           # Production deployment guide
 └── src/                        # Source code directory
     ├── mod.ts                  # Internal exports
+    ├── client.ts               # Main TimescaleClient class
+    ├── factory.ts              # ClientFactory for initialization
     ├── types/                  # TypeScript interfaces and types
     │   ├── mod.ts              # Type exports
-    │   ├── interfaces.ts       # Core data interfaces (PriceTick, Ohlc)
+    │   ├── interfaces.ts       # Core data interfaces
     │   ├── config.ts           # Configuration interfaces
     │   ├── errors.ts           # Error type definitions
     │   └── internal.ts         # Internal type definitions
-    ├── client/                 # Core client implementation
-    │   ├── mod.ts              # Client exports
-    │   ├── timescale-client.ts # Main TimescaleClient class
-    │   ├── client-factory.ts   # Factory for client creation
-    │   └── connection-manager.ts # Connection lifecycle management
-    ├── config/                 # Configuration and connection setup
-    │   ├── mod.ts              # Config exports
-    │   ├── connection-config.ts # Connection configuration
-    │   ├── client-options.ts   # Client behavior options
-    │   └── defaults.ts         # Default configuration values
-    ├── queries/                # SQL query builders and templates
+    ├── database/               # Database connection and management
+    │   ├── mod.ts              # Database exports
+    │   ├── connection.ts       # Connection management
+    │   ├── health.ts           # Health check functionality
+    │   └── pool.ts             # Connection pooling
+    ├── queries/                # SQL query builders and operations
     │   ├── mod.ts              # Query exports
-    │   ├── insert-queries.ts   # Insert operation queries
-    │   ├── select-queries.ts   # Select operation queries
-    │   ├── aggregation-queries.ts # Aggregation and time-bucket queries
-    │   └── schema-queries.ts   # Schema creation and management
-    ├── utils/                  # Utilities and helper functions
-    │   ├── mod.ts              # Utility exports
-    │   ├── validator.ts        # Input validation functions
-    │   ├── error-handler.ts    # Error handling utilities
-    │   ├── time-utils.ts       # Time and date utilities
-    │   └── sql-builder.ts      # SQL query building helpers
-    └── tests/                  # Unit tests
-        ├── mod.ts              # Test exports and utilities
-        ├── client/             # Client tests
-        │   ├── timescale-client.test.ts
-        │   ├── client-factory.test.ts
-        │   └── connection-manager.test.ts
-        ├── config/             # Configuration tests
-        │   ├── connection-config.test.ts
-        │   └── client-options.test.ts
-        ├── queries/            # Query builder tests
-        │   ├── insert-queries.test.ts
-        │   ├── select-queries.test.ts
-        │   └── aggregation-queries.test.ts
-        ├── utils/              # Utility tests
-        │   ├── validator.test.ts
-        │   ├── error-handler.test.ts
-        │   └── time-utils.test.ts
-        └── fixtures/           # Test data and mocks
-            ├── mock-data.ts    # Sample test data
-            ├── mock-sql.ts     # postgres.js mock implementations
-            └── test-config.ts  # Test configuration helpers
+    │   ├── insert.ts           # Insert operations
+    │   ├── select.ts           # Select operations
+    │   └── aggregate.ts        # Aggregation operations
+    ├── schema/                 # Database schema management
+    │   ├── mod.ts              # Schema exports
+    │   ├── create_tables.sql   # Table creation scripts
+    │   ├── indexes.sql         # Index creation scripts
+    │   ├── compression.sql     # Compression policies
+    │   ├── continuous_aggregates.sql # Continuous aggregate views
+    │   ├── retention.sql       # Data retention policies
+    │   └── migrations/         # Schema migrations
+    │       ├── mod.ts          # Migration exports
+    │       └── 001_initial_schema.sql # Initial schema
+    └── tests/                  # Test suites
+        ├── unit/               # Unit tests
+        ├── integration/        # Integration tests
+        ├── fixtures/           # Test data and mocks
+        └── utils/              # Test utilities
 ```
 
-## File Responsibilities & Dependencies
+## Core Architecture Components
 
-### Root Level Files
+### 1. Client Layer
 
-#### `mod.ts` - Main Module Export
+#### TimescaleClient
+
 ```typescript
-// Public API exports only
-export { TimescaleClient } from './src/client/mod.ts'
-export { ClientFactory } from './src/client/mod.ts'
-export type { 
-  PriceTick, 
-  Ohlc, 
-  TimeRange, 
-  ConnectionConfig,
-  ClientOptions 
-} from './src/types/mod.ts'
-export {
-  TimescaleClientError,
-  ConnectionError,
-  ValidationError,
-  QueryError
-} from './src/types/mod.ts'
+export class TimescaleClient {
+  private sql: Sql
+  private config: ClientConfig
+
+  constructor(sql: Sql, config?: ClientConfig) {
+    this.sql = sql
+    this.config = { ...DEFAULT_CONFIG, ...config }
+  }
+
+  // Core operations
+  async insertRecord(record: TimeSeriesRecord): Promise<void>
+  async insertManyRecords(records: TimeSeriesRecord[]): Promise<BatchResult>
+  async getRecords(entityId: string, range: TimeRange): Promise<TimeSeriesRecord[]>
+  async getAggregate(entityId: string, func: AggregateFunction, column: ValueColumn, range: TimeRange): Promise<number>
+  async getTimeBuckets(entityId: string, interval: string, range: TimeRange): Promise<TimeBucketResult[]>
+}
 ```
 
-### Source Directory Structure
+#### ClientFactory
 
-#### `src/types/` - Type Definitions
-
-**`src/types/mod.ts`** - Type Module Exports
 ```typescript
-// Core data interfaces
-export type { PriceTick, Ohlc, TimeRange } from './interfaces.ts'
-
-// Configuration interfaces  
-export type { 
-  ConnectionConfig, 
-  ClientOptions,
-  SSLConfig 
-} from './config.ts'
-
-// Error types
-export {
-  TimescaleClientError,
-  ConnectionError,
-  ValidationError,
-  QueryError
-} from './errors.ts'
-
-// Internal types (not exported from main mod.ts)
-export type { 
-  SqlInstance,
-  QueryBuilder,
-  BatchInsertOptions 
-} from './internal.ts'
+export class ClientFactory {
+  static async fromConnectionString(connectionString: string, options?: ClientConfig): Promise<TimescaleClient>
+  static async fromConfig(config: ConnectionConfig, options?: ClientConfig): Promise<TimescaleClient>
+  static async fromEnvironment(options?: ClientConfig): Promise<TimescaleClient>
+}
 ```
 
-**`src/types/interfaces.ts`** - Core Data Interfaces
-- `PriceTick` interface matching README spec
-- `Ohlc` interface matching README spec  
-- `TimeRange` interface for query ranges
-- Time interval enums and types
+### 2. Data Layer
 
-**`src/types/config.ts`** - Configuration Types
-- `ConnectionConfig` interface with all postgres.js options
-- `ClientOptions` interface for client behavior
-- `SSLConfig` interface for SSL configuration
-- Connection pool configuration types
+#### Core Data Model
 
-**`src/types/errors.ts`** - Error Class Definitions
-- Base `TimescaleClientError` class
-- Specific error types: `ConnectionError`, `ValidationError`, `QueryError`
-- Error code enumerations
-
-**`src/types/internal.ts`** - Internal Types
-- Internal interfaces not exposed in public API
-- Helper types for query building
-- Internal state management types
-
-#### `src/client/` - Client Implementation
-
-**`src/client/mod.ts`** - Client Module Exports
 ```typescript
-export { TimescaleClient } from './timescale-client.ts'
-export { ClientFactory } from './client-factory.ts'
-export { ConnectionManager } from './connection-manager.ts'
+interface TimeSeriesRecord {
+  entity_id: string      // Universal entity identifier
+  time: string          // ISO 8601 timestamp
+  value: number         // Primary numeric value
+  value2?: number       // Optional secondary value
+  value3?: number       // Optional tertiary value
+  value4?: number       // Optional quaternary value
+  metadata?: Record<string, any> // Optional structured metadata
+}
+
+interface Entity {
+  entity_id: string
+  entity_type: string   // e.g., 'sensor', 'server', 'application'
+  name?: string
+  is_active: boolean
+  metadata?: Record<string, any>
+  created_at: Date
+  updated_at: Date
+}
 ```
 
-**`src/client/timescale-client.ts`** - Main Client Class
-- Primary `TimescaleClient` class implementation
-- All public API methods (insertTick, getOhlc, etc.)
-- Delegates to query builders and validators
-- Dependencies: types, utils, queries
+#### Database Schema
 
-**`src/client/client-factory.ts`** - Factory Pattern Implementation
-- `ClientFactory` class for creating configured clients
-- Factory methods for different initialization patterns
-- Connection string parsing and validation
-- Dependencies: config, connection-manager
+**Core Tables:**
 
-**`src/client/connection-manager.ts`** - Connection Lifecycle
-- Manages postgres.js connection instances
-- Connection pooling configuration
-- Graceful shutdown handling
-- Dependencies: config, postgres
+```sql
+-- Time-series data hypertable
+CREATE TABLE time_series_data (
+  time TIMESTAMPTZ NOT NULL,
+  entity_id TEXT NOT NULL,
+  value DOUBLE PRECISION NOT NULL,
+  value2 DOUBLE PRECISION,
+  value3 DOUBLE PRECISION,
+  value4 DOUBLE PRECISION,
+  metadata JSONB,
+  PRIMARY KEY (entity_id, time)
+);
 
-#### `src/config/` - Configuration Management
+-- Convert to hypertable
+SELECT create_hypertable('time_series_data', 'time',
+  chunk_time_interval => INTERVAL '1 day',
+  partitioning_column => 'entity_id',
+  number_partitions => 4
+);
 
-**`src/config/mod.ts`** - Configuration Exports
+-- Entity metadata table
+CREATE TABLE entities (
+  entity_id TEXT PRIMARY KEY,
+  entity_type TEXT NOT NULL,
+  name TEXT,
+  is_active BOOLEAN DEFAULT true,
+  metadata JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**Optimized Indexes:**
+
+```sql
+-- Primary time-series indexes
+CREATE INDEX ix_time_series_data_entity_id_time
+  ON time_series_data (entity_id, time DESC);
+
+CREATE INDEX ix_time_series_data_time
+  ON time_series_data (time DESC);
+
+-- Value-based indexes for analytics
+CREATE INDEX ix_time_series_data_value_time
+  ON time_series_data (value, time DESC);
+
+-- Metadata search index
+CREATE INDEX ix_time_series_data_metadata_gin
+  ON time_series_data USING GIN (metadata);
+
+-- Entity indexes
+CREATE INDEX ix_entities_entity_type ON entities (entity_type);
+CREATE INDEX ix_entities_is_active ON entities (is_active);
+```
+
+### 3. Query Layer
+
+#### Insert Operations
+
 ```typescript
-export { ConnectionConfig } from './connection-config.ts'
-export { ClientOptions } from './client-options.ts'
-export * from './defaults.ts'
+export class InsertQueries {
+  constructor(private sql: Sql) {}
+
+  async insertRecord(record: TimeSeriesRecord): Promise<void> {
+    await this.sql`
+      INSERT INTO time_series_data (time, entity_id, value, value2, value3, value4, metadata)
+      VALUES (${record.time}, ${record.entity_id}, ${record.value}, ${record.value2 ?? null},
+              ${record.value3 ?? null}, ${record.value4 ?? null}, ${record.metadata ?? null})
+      ON CONFLICT (entity_id, time) DO UPDATE SET
+        value = EXCLUDED.value,
+        value2 = EXCLUDED.value2,
+        value3 = EXCLUDED.value3,
+        value4 = EXCLUDED.value4,
+        metadata = EXCLUDED.metadata
+    `
+  }
+
+  async insertManyRecords(records: TimeSeriesRecord[]): Promise<void> {
+    if (records.length === 0) return
+
+    await this.sql`
+      INSERT INTO time_series_data (time, entity_id, value, value2, value3, value4, metadata)
+      VALUES ${this.sql(records.map(r => [
+        r.time, r.entity_id, r.value, r.value2 ?? null,
+        r.value3 ?? null, r.value4 ?? null, r.metadata ?? null
+      ]))}
+      ON CONFLICT (entity_id, time) DO UPDATE SET
+        value = EXCLUDED.value,
+        value2 = EXCLUDED.value2,
+        value3 = EXCLUDED.value3,
+        value4 = EXCLUDED.value4,
+        metadata = EXCLUDED.metadata
+    `
+  }
+}
 ```
 
-**`src/config/connection-config.ts`** - Connection Configuration
-- Connection parameter validation
-- SSL configuration handling
-- Environment variable integration
-- Connection string parsing
+#### Select Operations
 
-**`src/config/client-options.ts`** - Client Behavior Options
-- Client-specific configuration (batch sizes, timeouts)
-- Performance tuning options
-- Validation rules configuration
-
-**`src/config/defaults.ts`** - Default Values
-- Default configuration constants
-- Fallback values for optional parameters
-- Environment-specific defaults
-
-#### `src/queries/` - SQL Query Management
-
-**`src/queries/mod.ts`** - Query Module Exports
 ```typescript
-export { InsertQueries } from './insert-queries.ts'
-export { SelectQueries } from './select-queries.ts'
-export { AggregationQueries } from './aggregation-queries.ts'
-export { SchemaQueries } from './schema-queries.ts'
+export class SelectQueries {
+  constructor(private sql: Sql) {}
+
+  async getRecords(entityId: string, range: TimeRange): Promise<TimeSeriesRecord[]> {
+    const rows = await this.sql`
+      SELECT time, entity_id, value, value2, value3, value4, metadata
+      FROM time_series_data
+      WHERE entity_id = ${entityId}
+        AND time >= ${range.from}
+        AND time < ${range.to}
+      ORDER BY time DESC
+      LIMIT ${range.limit ?? 1000}
+    `
+
+    return rows.map(this.mapRowToRecord)
+  }
+
+  async getLatestValues(entityIds: string[]): Promise<TimeSeriesRecord[]> {
+    const rows = await this.sql`
+      SELECT DISTINCT ON (entity_id)
+        time, entity_id, value, value2, value3, value4, metadata
+      FROM time_series_data
+      WHERE entity_id = ANY(${entityIds})
+      ORDER BY entity_id, time DESC
+    `
+
+    return rows.map(this.mapRowToRecord)
+  }
+}
 ```
 
-**`src/queries/insert-queries.ts`** - Insert Operations
-- Single and batch insert query builders
-- Prepared statement optimization
-- Bulk insert with postgres.js patterns
-- Dependencies: types, sql-builder
+#### Aggregation Operations
 
-**`src/queries/select-queries.ts`** - Select Operations
-- Time range queries
-- Symbol-based filtering
-- Pagination support
-- Dependencies: types, sql-builder
-
-**`src/queries/aggregation-queries.ts`** - TimescaleDB Aggregations
-- `time_bucket` aggregation queries
-- OHLC calculations from tick data
-- Statistical aggregations (volatility, delta)
-- Dependencies: types, sql-builder
-
-**`src/queries/schema-queries.ts`** - Schema Management
-- Hypertable creation queries
-- Index creation and optimization
-- Schema validation queries
-- Dependencies: sql-builder
-
-#### `src/utils/` - Utilities and Helpers
-
-**`src/utils/mod.ts`** - Utility Exports
 ```typescript
-export { validate } from './validator.ts'
-export { handleError, wrapError } from './error-handler.ts'
-export { formatTimestamp, parseTimeRange } from './time-utils.ts'
-export { buildInsertQuery, buildSelectQuery } from './sql-builder.ts'
+export class AggregateQueries {
+  constructor(private sql: Sql) {}
+
+  async getAggregate(
+    entityId: string,
+    func: AggregateFunction,
+    column: ValueColumn,
+    range: TimeRange
+  ): Promise<number> {
+    const rows = await this.sql`
+      SELECT ${this.sql(func)}(${this.sql(column)}) as result
+      FROM time_series_data
+      WHERE entity_id = ${entityId}
+        AND time >= ${range.from}
+        AND time < ${range.to}
+    `
+
+    return rows[0]?.result ?? 0
+  }
+
+  async getTimeBuckets(
+    entityId: string,
+    interval: string,
+    range: TimeRange,
+    options: AggregationOptions = {}
+  ): Promise<TimeBucketResult[]> {
+    const column = options.aggregateColumn ?? 'value'
+    const func = options.aggregateFunction ?? 'avg'
+
+    const rows = await this.sql`
+      SELECT
+        time_bucket(${interval}, time) as bucket,
+        entity_id,
+        ${this.sql(func)}(${this.sql(column)}) as value,
+        count(*) as count
+      FROM time_series_data
+      WHERE entity_id = ${entityId}
+        AND time >= ${range.from}
+        AND time < ${range.to}
+      GROUP BY bucket, entity_id
+      ORDER BY bucket DESC
+      LIMIT ${range.limit ?? 1000}
+    `
+
+    return rows.map(row => ({
+      bucket: row.bucket,
+      entity_id: row.entity_id,
+      value: row.value,
+      count: row.count
+    }))
+  }
+}
 ```
 
-**`src/utils/validator.ts`** - Input Validation
-- `PriceTick` and `Ohlc` validation functions
-- Symbol format validation
-- Timestamp validation
-- Batch size validation
-- Dependencies: types
+### 4. Schema Management
 
-**`src/utils/error-handler.ts`** - Error Management
-- Error wrapping and context addition
-- postgres.js error translation
-- Error logging and formatting
-- Dependencies: types
+#### Automatic Schema Creation
 
-**`src/utils/time-utils.ts`** - Time Utilities
-- Timestamp formatting and parsing
-- Time range calculations
-- Timezone handling
-- Dependencies: none (pure functions)
-
-**`src/utils/sql-builder.ts`** - SQL Building Helpers
-- Common SQL pattern builders
-- Parameterized query helpers
-- Query composition utilities
-- Dependencies: postgres types
-
-### Testing Structure
-
-#### `src/tests/` - Test Organization
-
-**`src/tests/mod.ts`** - Test Utilities
 ```typescript
-export { createMockSql } from './fixtures/mock-sql.ts'
-export { sampleTicks, sampleOhlc } from './fixtures/mock-data.ts'
-export { testConfig } from './fixtures/test-config.ts'
+export class SchemaManager {
+  constructor(private sql: Sql) {}
+
+  async ensureSchema(): Promise<void> {
+    await this.createTablesIfNotExist()
+    await this.createIndexesIfNotExist()
+    await this.setupCompressionIfNeeded()
+    await this.validateSchema()
+  }
+
+  private async createTablesIfNotExist(): Promise<void> {
+    // Create time_series_data table
+    await this.sql.file(path.join(import.meta.dirname, 'schema/create_tables.sql'))
+
+    // Convert to hypertable if not already
+    const isHypertable = await this.sql`
+      SELECT 1 FROM timescaledb_information.hypertables
+      WHERE hypertable_name = 'time_series_data'
+    `
+
+    if (isHypertable.length === 0) {
+      await this.sql`
+        SELECT create_hypertable('time_series_data', 'time',
+          chunk_time_interval => INTERVAL '1 day',
+          partitioning_column => 'entity_id',
+          number_partitions => 4
+        )
+      `
+    }
+  }
+
+  private async createIndexesIfNotExist(): Promise<void> {
+    await this.sql.file(path.join(import.meta.dirname, 'schema/indexes.sql'))
+  }
+}
 ```
 
-**Test Categories:**
-- **Client Tests**: Test public API methods and client behavior
-- **Config Tests**: Test configuration parsing and validation
-- **Query Tests**: Test SQL generation and query building
-- **Utility Tests**: Test validation, error handling, and utilities
-- **Fixtures**: Mock data and helper functions
+### 5. Connection Management
 
-## Module Dependencies Graph
+#### Connection Strategy
 
-```
-mod.ts
-├── src/client/mod.ts
-│   ├── timescale-client.ts
-│   │   ├── src/types/mod.ts
-│   │   ├── src/queries/mod.ts
-│   │   └── src/utils/mod.ts
-│   ├── client-factory.ts
-│   │   ├── src/config/mod.ts
-│   │   └── connection-manager.ts
-│   └── connection-manager.ts
-│       ├── src/config/mod.ts
-│       └── postgres.js
-├── src/types/mod.ts
-│   ├── interfaces.ts
-│   ├── config.ts
-│   ├── errors.ts
-│   └── internal.ts
-└── src/utils/mod.ts
-    ├── validator.ts
-    ├── error-handler.ts
-    ├── time-utils.ts
-    └── sql-builder.ts
-```
-
-## Import Patterns
-
-### External Dependencies
 ```typescript
-// Only in root mod.ts and connection-manager.ts
-import postgres from 'postgres'
-import type { Sql } from 'postgres'
+export class ConnectionManager {
+  private sql: Sql
+  private config: ConnectionConfig
+
+  constructor(config: ConnectionConfig) {
+    this.config = config
+    this.sql = this.createConnection()
+  }
+
+  private createConnection(): Sql {
+    return postgres({
+      host: this.config.host,
+      port: this.config.port,
+      database: this.config.database,
+      username: this.config.username,
+      password: this.config.password,
+      ssl: this.config.ssl,
+      max: this.config.maxConnections ?? 10,
+      max_lifetime: this.config.maxLifetime ?? 3600,
+      idle_timeout: this.config.idleTimeout ?? 0,
+      connect_timeout: this.config.connectTimeout ?? 30,
+      transform: {
+        undefined: null
+      }
+    })
+  }
+
+  async healthCheck(): Promise<HealthCheckResult> {
+    const startTime = Date.now()
+
+    try {
+      const result = await this.sql`
+        SELECT version() as version,
+               current_database() as database,
+               current_timestamp as timestamp
+      `
+
+      const responseTime = Date.now() - startTime
+
+      return {
+        isHealthy: true,
+        responseTimeMs: responseTime,
+        version: result[0].version,
+        database: result[0].database,
+        timestamp: new Date(),
+        connection: {
+          host: this.config.host,
+          port: this.config.port,
+          ssl: !!this.config.ssl
+        }
+      }
+    } catch (error) {
+      return {
+        isHealthy: false,
+        responseTimeMs: Date.now() - startTime,
+        timestamp: new Date(),
+        errors: [error.message],
+        connection: {
+          host: this.config.host,
+          port: this.config.port,
+          ssl: !!this.config.ssl
+        }
+      }
+    }
+  }
+}
 ```
 
-### Internal Dependencies
+## Use Case Adaptability
+
+### IoT Sensor Networks
+
 ```typescript
-// Always use relative imports within src/
-import type { PriceTick } from '../types/interfaces.ts'
-import { validate } from '../utils/validator.ts'
-
-// Always use mod.ts for cross-module imports
-import { TimescaleClient } from '../client/mod.ts'
-import type { ConnectionConfig } from '../config/mod.ts'
+// Temperature/Humidity sensors
+const sensorRecord: TimeSeriesRecord = {
+  entity_id: 'temp_sensor_01',
+  time: '2024-01-15T10:30:00Z',
+  value: 23.5,      // Temperature °C
+  value2: 65.2,     // Humidity %
+  value3: 1013.25,  // Pressure hPa
+  metadata: {
+    location: 'warehouse_a',
+    room: 'server_room',
+    sensor_type: 'DHT22',
+    battery_level: 85
+  }
+}
 ```
 
-### Test Dependencies
+### System Monitoring
+
 ```typescript
-// Standard testing imports
-import { assertEquals, assertRejects } from '@std/assert'
-import { describe, it } from '@std/testing/bdd'
-import { spy, stub } from '@std/testing/mock'
-
-// Test utilities
-import { createMockSql, sampleTicks } from '../fixtures/mod.ts'
+// Server performance metrics
+const serverRecord: TimeSeriesRecord = {
+  entity_id: 'server_prod_01',
+  time: '2024-01-15T10:30:00Z',
+  value: 75.2,      // CPU usage %
+  value2: 8.1,      // Memory usage GB
+  value3: 1024.5,   // Network I/O MB/s
+  value4: 0.8,      // Disk I/O utilization
+  metadata: {
+    hostname: 'prod-web-01',
+    datacenter: 'us-east-1',
+    instance_type: 'c5.large',
+    os_version: 'Ubuntu 22.04'
+  }
+}
 ```
 
-## Build and Export Strategy
+### Application Logging
 
-### Public API Surface
-The main `mod.ts` exposes only:
-- `TimescaleClient` class
-- `ClientFactory` class  
-- Core interfaces: `PriceTick`, `Ohlc`, `TimeRange`
-- Configuration interfaces: `ConnectionConfig`, `ClientOptions`
-- Error classes for proper error handling
+```typescript
+// Application performance metrics
+const appRecord: TimeSeriesRecord = {
+  entity_id: 'api_gateway',
+  time: '2024-01-15T10:30:00Z',
+  value: 145.2,     // Response time ms
+  value2: 1,        // Success flag (1=success, 0=error)
+  value3: 502.1,    // Request size bytes
+  value4: 1024.8,   // Response size bytes
+  metadata: {
+    endpoint: '/api/v1/users',
+    method: 'GET',
+    status_code: 200,
+    user_agent: 'monitoring-agent/1.0'
+  }
+}
+```
 
-### Internal Implementation
-All implementation details remain internal:
-- Query builders
-- Utility functions
-- Internal types
-- Connection management details
+### Industrial IoT
 
-### Backwards Compatibility
-- Maintain stable public API
-- Internal refactoring without breaking changes
-- Semantic versioning for API changes
+```typescript
+// Manufacturing equipment metrics
+const equipmentRecord: TimeSeriesRecord = {
+  entity_id: 'machine_001',
+  time: '2024-01-15T10:30:00Z',
+  value: 2850,      // RPM
+  value2: 98.5,     // Efficiency %
+  value3: 75.2,     // Temperature °C
+  value4: 42.1,     // Vibration level
+  metadata: {
+    production_line: 'line_a',
+    shift: 'morning',
+    operator_id: 'op_123',
+    maintenance_due: '2024-02-01'
+  }
+}
+```
 
-## Performance Considerations
+## Performance Optimization
 
-### Module Loading
-- Lazy loading of query builders
-- Minimal dependencies in core types
-- Tree-shaking friendly exports
+### Indexing Strategy
 
-### Memory Usage
-- Single postgres.js instance per client
-- Shared query builders across operations
-- Minimal object allocation in hot paths
+- **Primary Access Pattern**: Entity + Time queries via `ix_time_series_data_entity_id_time`
+- **Time Range Scans**: Cross-entity time queries via `ix_time_series_data_time`
+- **Value Analytics**: Value-based analysis via `ix_time_series_data_value_time`
+- **Metadata Search**: JSON queries via GIN index on metadata
 
-### Development Experience
-- Clear module boundaries
-- Predictable import patterns
-- Fast TypeScript compilation
-- Easy testing and mocking
+### Compression Configuration
 
-This file structure provides a scalable, maintainable architecture that follows TypeScript and Deno best practices while implementing the TimescaleDB client requirements efficiently.
+```sql
+-- Enable compression for data older than 7 days
+ALTER TABLE time_series_data SET (
+  timescaledb.compress,
+  timescaledb.compress_segmentby = 'entity_id',
+  timescaledb.compress_orderby = 'time DESC'
+);
+
+-- Add compression policy
+SELECT add_compression_policy('time_series_data', INTERVAL '7 days');
+```
+
+### Retention Policies
+
+```sql
+-- Retain data for 1 year
+SELECT add_retention_policy('time_series_data', INTERVAL '1 year');
+```
+
+### Continuous Aggregates
+
+```sql
+-- Hourly aggregates for fast dashboard queries
+CREATE MATERIALIZED VIEW hourly_metrics
+WITH (timescaledb.continuous) AS
+SELECT
+  time_bucket('1 hour', time) as hour,
+  entity_id,
+  avg(value) as avg_value,
+  max(value) as max_value,
+  min(value) as min_value,
+  count(*) as data_points
+FROM time_series_data
+GROUP BY hour, entity_id;
+
+-- Refresh policy
+SELECT add_continuous_aggregate_policy('hourly_metrics',
+  start_offset => INTERVAL '1 hour',
+  end_offset => INTERVAL '1 minute',
+  schedule_interval => INTERVAL '1 hour'
+);
+```
+
+## Error Handling Architecture
+
+### Error Hierarchy
+
+```typescript
+export class TimescaleClientError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string,
+    public readonly cause?: Error,
+    public readonly details?: Record<string, unknown>
+  ) {
+    super(message)
+    this.name = 'TimescaleClientError'
+  }
+}
+
+export class ConnectionError extends TimescaleClientError {}
+export class ValidationError extends TimescaleClientError {}
+export class QueryError extends TimescaleClientError {}
+export class BatchError extends TimescaleClientError {}
+```
+
+### Error Recovery Strategies
+
+- **Connection Errors**: Automatic retry with exponential backoff
+- **Validation Errors**: Immediate failure with detailed field information
+- **Query Errors**: Context-aware error reporting with query details
+- **Batch Errors**: Partial success handling with detailed error tracking
+
+## Scalability Considerations
+
+### Horizontal Scaling
+
+- **Hypertable Partitioning**: Automatic partitioning by time and entity
+- **Distributed Hypertables**: Support for multi-node TimescaleDB clusters
+- **Read Replicas**: Query routing to read replicas for analytics workloads
+
+### Vertical Scaling
+
+- **Connection Pooling**: Optimized connection management
+- **Batch Operations**: Efficient bulk processing
+- **Streaming**: Memory-efficient processing of large datasets
+- **Index Optimization**: Strategic indexing for query patterns
+
+### Storage Optimization
+
+- **Compression**: 90%+ storage reduction for historical data
+- **Retention**: Automated lifecycle management
+- **Partitioning**: Efficient chunk management and pruning
+
+This architecture provides a clean, scalable foundation for time-series data operations across any domain while leveraging TimescaleDB's powerful features for optimal performance.

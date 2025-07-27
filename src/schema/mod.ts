@@ -1,9 +1,9 @@
 // TimescaleDB Client - Schema Management Module
 // This module provides TypeScript functions to manage database schema operations
 
-import { readTextFile } from 'https://deno.land/std@0.208.0/fs/read_text_file.ts'
-import { exists } from 'https://deno.land/std@0.208.0/fs/exists.ts'
-import { join } from 'https://deno.land/std@0.208.0/path/join.ts'
+import { readTextFile } from '@std/fs/unstable-read-text-file'
+import { exists } from '@std/fs/exists'
+import { join } from '@std/path/join'
 import type { Sql } from 'https://esm.sh/postgres@3.4.3'
 
 // =============================================================================

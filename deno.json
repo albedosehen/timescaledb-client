@@ -1,7 +1,7 @@
 {
   "name": "@timescale/client",
   "version": "0.1.0",
-  "description": "A TimescaleDB client for Deno featuring time-series data operation and analytics.",
+  "description": "Clean, unopinionated TimescaleDB client for time-series data operations with IoT, monitoring, and logging support.",
   "author": "Shon Thomas",
   "license": "MIT",
   "repository": {
@@ -17,16 +17,19 @@
     "client",
     "typescript",
     "deno",
-    "financial",
-    "trading",
+    "iot",
+    "monitoring",
+    "logging",
     "analytics",
-    "ohlc",
-    "price-data",
-    "technical-indicators",
+    "sensors",
+    "metrics",
+    "events",
     "streaming",
     "batch-processing",
     "real-time",
-    "hypertable"
+    "hypertable",
+    "universal",
+    "generic"
   ],
   "exports": "./src/mod.ts",
   "publish": {
@@ -60,7 +63,8 @@
     "noImplicitOverride": true,
     "noUncheckedIndexedAccess": true,
     "noUnusedLocals": true,
-    "noUnusedParameters": true
+    "noUnusedParameters": true,
+    "noImplicitAny": true
   },
   "exclude": [
     "examples/",
@@ -70,12 +74,15 @@
     "temp/"
   ],
   "imports": {
-    "@std/assert": "jsr:@std/assert@^1.0.0",
-    "@std/testing": "jsr:@std/testing@^1.0.0",
-    "@std/async": "jsr:@std/async@^1.0.0",
-    "@std/streams": "jsr:@std/streams@^1.0.0",
-    "@std/collections": "jsr:@std/collections@^1.0.0",
-    "postgres": "https://deno.land/x/postgresjs/mod.js"
+    "@std/assert": "jsr:@std/assert@^1.0.13",
+    "@std/path": "jsr:@std/path@^1.1.1",
+    "@std/testing": "jsr:@std/testing@^1.0.15",
+    "@std/async": "jsr:@std/async@^1.0.13",
+    "@std/streams": "jsr:@std/streams@^1.0.10",
+    "@std/collections": "jsr:@std/collections@^1.1.2",
+    "@std/fs": "jsr:@std/fs@^1.0.19",
+    "postgres": "https://deno.land/x/postgresjs/mod.js",
+    "@albedosehen/stoat": "npm:@albedosehen/stoat@^1.0.0"
   },
   "tasks": {
     "test": "deno test --allow-read --allow-write --allow-env --allow-net --coverage=coverage/",
@@ -103,7 +110,7 @@
     "publish:jsr": "deno publish",
     "dev": "deno run --watch --allow-read --allow-write --allow-env --allow-net examples/basic/quick_start.ts",
     "docs:api": "deno doc --html --name=\"TimescaleDB Client\" src/mod.ts",
-    "docs:serve": "deno run --allow-read --allow-net https://deno.land/std@0.208.0/http/file_server.ts docs/",
+    "docs:serve": "deno run --allow-read --allow-net @std/http/file_server docs/",
     "benchmark": "deno run --allow-read --allow-write --allow-env --allow-net scripts/benchmark.ts"
   },
   "lint": {

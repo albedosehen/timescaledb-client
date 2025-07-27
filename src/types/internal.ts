@@ -251,26 +251,27 @@ export interface PoolConfig {
  * Database row interfaces for internal operations
  */
 
-/** Raw price tick row from database */
-export interface PriceTickRow {
+/** Raw time-series record row from database */
+export interface TimeSeriesRow {
   readonly time: Date
-  readonly symbol: string
-  readonly price: number
-  readonly volume: number | null
+  readonly entity_id: string
+  readonly value: number
+  readonly value2: number | null
+  readonly value3: number | null
+  readonly value4: number | null
+  readonly metadata: Record<string, unknown> | null
 }
 
-/** Raw OHLC row from database */
-export interface OhlcRow {
-  readonly time: Date
-  readonly symbol: string
-  readonly 'interval_minutes': number
-  readonly open: number
-  readonly high: number
-  readonly low: number
-  readonly close: number
-  readonly volume: number | null
-  readonly 'price_change': number | null
-  readonly 'price_change_percent': number | null
+/** Raw entity metadata row from database */
+export interface EntityRow {
+  readonly entity_id: string
+  readonly entity_type: string
+  readonly name: string | null
+  readonly description: string | null
+  readonly metadata: Record<string, unknown> | null
+  readonly created_at: Date
+  readonly updated_at: Date
+  readonly is_active: boolean
 }
 
 /** TimescaleDB hypertable metadata row */
@@ -409,23 +410,29 @@ export interface ValidationResult {
  */
 export const SCHEMA_CONSTANTS = {
   TABLES: {
-    PRICE_TICKS: 'price_ticks',
-    OHLC_DATA: 'ohlc_data',
+    TIME_SERIES_DATA: 'time_series_data',
+    ENTITIES: 'entities',
   },
   COLUMNS: {
     TIME: 'time',
-    SYMBOL: 'symbol',
-    PRICE: 'price',
-    VOLUME: 'volume',
-    OPEN: 'open',
-    HIGH: 'high',
-    LOW: 'low',
-    CLOSE: 'close',
+    ENTITY_ID: 'entity_id',
+    ENTITY_TYPE: 'entity_type',
+    VALUE: 'value',
+    VALUE2: 'value2',
+    VALUE3: 'value3',
+    VALUE4: 'value4',
+    METADATA: 'metadata',
+    NAME: 'name',
+    DESCRIPTION: 'description',
+    CREATED_AT: 'created_at',
+    UPDATED_AT: 'updated_at',
+    IS_ACTIVE: 'is_active',
   },
   INDEXES: {
-    PRICE_TICKS_SYMBOL_TIME: 'ix_price_ticks_symbol_time',
-    PRICE_TICKS_TIME: 'ix_price_ticks_time',
-    OHLC_SYMBOL_TIME: 'ix_ohlc_data_symbol_time',
+    TIME_SERIES_ENTITY_TIME: 'ix_time_series_data_entity_id_time',
+    TIME_SERIES_TIME: 'ix_time_series_data_time',
+    ENTITIES_TYPE: 'ix_entities_entity_type',
+    ENTITIES_ACTIVE: 'ix_entities_is_active',
   },
 } as const
 

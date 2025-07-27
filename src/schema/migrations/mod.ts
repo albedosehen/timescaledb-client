@@ -1,10 +1,12 @@
-// TimescaleDB Client - Migration Management Module
-// This module handles database migrations for schema evolution
+/**
+ * TimescaleDB Client - Migration Management Module
+ * This module handles database migrations for schema evolution
+ * @module schema/migrations
+ */
 
-import { readTextFile } from 'https://deno.land/std@0.208.0/fs/read_text_file.ts'
-import { exists } from 'https://deno.land/std@0.208.0/fs/exists.ts'
-import { join } from 'https://deno.land/std@0.208.0/path/join.ts'
-import { walkSync } from 'https://deno.land/std@0.208.0/fs/walk.ts'
+import { exists } from '@std/fs/exists'
+import { join } from '@std/path/join'
+import { walkSync } from '@std/fs/walk'
 import type { Sql } from 'https://esm.sh/postgres@3.4.3'
 
 // =============================================================================
@@ -203,7 +205,7 @@ export class MigrationManager {
       console.log(`📝 Running migration: ${migration.version}`)
 
       // Read migration file
-      const sqlContent = await readTextFile(migration.filePath)
+      const sqlContent = await Deno.readTextFile(migration.filePath)
       if (!sqlContent.trim()) {
         throw new Error(`Migration file is empty: ${migration.filePath}`)
       }
@@ -317,14 +319,72 @@ export class MigrationManager {
 
   /**
    * Extract description from migration file
+   *
+   * Searches for description comments in the format: -- Description: <description>
+   * Handles various edge cases including empty files, malformed content, and file system errors
+   *
+   * @param filePath - Path to the migration SQL file
+   * @returns Promise resolving to the description string or a fallback message
    */
   private async extractDescriptionFromFile(filePath: string): Promise<string> {
+    // Pre-compiled regex for better performance when called multiple times
+    const DESCRIPTION_PATTERN = /^--\s*Description:\s*(.+?)(?:\r?\n|$)/im
+    const DEFAULT_DESCRIPTION = 'No description available'
+    const FILE_READ_ERROR = 'Unable to read migration file'
+
     try {
-      const content = await readTextFile(filePath)
-      const descMatch = content.match(/-- Description:\s*(.+)/)
-      return descMatch ? descMatch[1].trim() : 'No description'
-    } catch {
-      return 'Could not read description'
+      // Validate file path
+      if (!filePath || typeof filePath !== 'string') {
+        return DEFAULT_DESCRIPTION
+      }
+
+      // Read file content (UTF-8 by default in Deno)
+      const content = await Deno.readTextFile(filePath)
+
+      // Handle empty or whitespace-only files
+      if (!content || !content.trim()) {
+        return DEFAULT_DESCRIPTION
+      }
+
+      // Search for description pattern
+      const descriptionMatch = content.match(DESCRIPTION_PATTERN)
+
+      // Check if we have a valid match with captured group
+      if (descriptionMatch && descriptionMatch[1]) {
+        const description = descriptionMatch[1].trim()
+
+        // Ensure description is not empty after trimming
+        if (description.length > 0) {
+          // Sanitize description - remove extra whitespace and limit length
+          return description
+            .replace(/\s+/g, ' ')
+            .slice(0, 200)
+            .trim()
+        }
+      }
+
+      return DEFAULT_DESCRIPTION
+
+    } catch (error) {
+      // Provide more specific error handling for different error types
+      if (error instanceof Deno.errors.NotFound) {
+        console.warn(`Migration file not found: ${filePath}`)
+        return 'Migration file not found'
+      }
+
+      if (error instanceof Deno.errors.PermissionDenied) {
+        console.warn(`Permission denied reading migration file: ${filePath}`)
+        return 'Permission denied reading file'
+      }
+
+      if (error instanceof TypeError) {
+        console.warn(`Invalid file path provided: ${filePath}`)
+        return 'Invalid file path'
+      }
+
+      // Log unexpected errors for debugging
+      console.warn(`Unexpected error reading migration file ${filePath}:`, error)
+      return FILE_READ_ERROR
     }
   }
 

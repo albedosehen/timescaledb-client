@@ -5,29 +5,29 @@
  * public API for type imports throughout the project.
  */
 
-// Core data interfaces
+// Core universal data interfaces
 export type {
   AggregationFunction,
+  AggregationResult,
   BatchResult,
+  BulkOperationConfig,
+  EntityMetadata,
+  FilterCriteria,
   HealthCheckResult,
   HypertableInfo,
   IndexInfo,
-  LatestPrice,
-  MultiSymbolLatest,
-  Ohlc,
-  PriceDelta,
-  PriceTick,
+  LatestRecord,
+  MultiEntityLatest,
   QueryOptions,
   QueryStats,
   RetentionPolicy,
   SchemaInfo,
+  StatisticalResult,
   StreamingOptions,
   TimeInterval,
   TimeRange,
-  TopMover,
+  TimeSeriesRecord,
   ValidationHelpers,
-  VolatilityResult,
-  VolumeProfile,
 } from './interfaces.ts'
 
 // Configuration interfaces

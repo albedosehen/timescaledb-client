@@ -5,6 +5,8 @@
  * scenarios while maintaining security and performance best practices.
  */
 
+import type { LoggerConfig } from './logging.ts'
+
 /**
  * SSL configuration options
  */
@@ -132,8 +134,14 @@ export interface ClientOptions {
   /** Whether to collect query statistics (default: false) */
   readonly collectStats?: boolean
 
-  /** Custom logger implementation */
+  /**
+   * @deprecated Use loggerConfig instead for enhanced features.
+   * This option remains fully supported for backward compatibility.
+   */
   readonly logger?: Logger
+
+  /** Enhanced logger configuration with adapter support */
+  readonly loggerConfig?: LoggerConfig
 
   /** Timezone for timestamp handling (default: 'UTC') */
   readonly timezone?: string
@@ -147,6 +155,8 @@ export interface ClientOptions {
 
 /**
  * Logger interface for custom logging implementations
+ * @deprecated Use the enhanced Logger interface from logging module instead.
+ * This interface remains for backward compatibility.
  */
 export interface Logger {
   /** Log debug-level messages with optional metadata */
@@ -207,7 +217,7 @@ export const DEFAULT_CONFIG: Required<
 /**
  * Default client options
  */
-export const DEFAULT_CLIENT_OPTIONS: Required<Omit<ClientOptions, 'logger'>> = {
+export const DEFAULT_CLIENT_OPTIONS: Required<Omit<ClientOptions, 'logger' | 'loggerConfig'>> = {
   defaultBatchSize: 1000,
   maxRetries: 3,
   retryBaseDelay: 1000,

@@ -20,7 +20,7 @@
 
 ## Overview
 
-This guide covers production deployment of applications using the TimescaleDB client. It includes best practices for security, performance, monitoring, and operational considerations for high-availability financial trading systems.
+This guide covers production deployment of applications using the TimescaleDB client. It includes best practices for security, performance, monitoring, and operational considerations for high-availability time-series data systems including IoT monitoring, system metrics, and application logging.
 
 ### Production Requirements
 
@@ -83,18 +83,18 @@ CREATE DATABASE timescale_prod;
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 
 -- Create application user with limited privileges
-CREATE USER trading_app WITH PASSWORD 'secure_password_here';
+CREATE USER timeseries_app WITH PASSWORD 'secure_password_here';
 
 -- Grant necessary permissions
-GRANT CONNECT ON DATABASE timescale_prod TO trading_app;
-GRANT USAGE ON SCHEMA public TO trading_app;
-GRANT CREATE ON SCHEMA public TO trading_app;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO trading_app;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO trading_app;
+GRANT CONNECT ON DATABASE timescale_prod TO timeseries_app;
+GRANT USAGE ON SCHEMA public TO timeseries_app;
+GRANT CREATE ON SCHEMA public TO timeseries_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO timeseries_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO timeseries_app;
 
 -- Set default privileges for future objects
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO trading_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO trading_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO timeseries_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO timeseries_app;
 ```
 
 ### PostgreSQL Configuration
@@ -230,7 +230,7 @@ export const createProductionClient = async () => {
 
 ```bash
 # .env.production
-DATABASE_URL=postgresql://trading_app:secure_password@db-host:5432/timescale_prod?sslmode=require
+DATABASE_URL=postgresql://timeseries_app:secure_password@db-host:5432/timescale_prod?sslmode=require
 DATABASE_POOL_SIZE=50
 DATABASE_MAX_CONNECTIONS=200
 DATABASE_TIMEOUT=60000
@@ -359,21 +359,21 @@ CREATE POLICY ohlc_data_policy ON ohlc_data
 // Implement comprehensive input validation
 import { Validators } from 'timescaledb-client'
 
-const validateTradingData = (data: any) => {
-  // Validate price tick data
-  if (!Validators.isValidPriceTick(data)) {
-    throw new ValidationError('Invalid price tick data')
+const validateTimeSeriesData = (data: any) => {
+  // Validate time-series record data
+  if (!Validators.isValidTimeSeriesRecord(data)) {
+    throw new ValidationError('Invalid time-series record data')
   }
   
   // Additional business logic validation
-  if (data.price < 0 || data.price > 1000000) {
-    throw new ValidationError('Price out of acceptable range')
+  if (data.value < -1000000 || data.value > 1000000) {
+    throw new ValidationError('Value out of acceptable range')
   }
   
-  // Symbol whitelist validation
-  const allowedSymbols = ['BTCUSD', 'ETHUSD', 'ADAUSD'] // Example
-  if (!allowedSymbols.includes(data.symbol)) {
-    throw new ValidationError('Symbol not allowed')
+  // Entity whitelist validation
+  const allowedEntities = ['sensor_001', 'server_web01', 'app_metrics'] // Example
+  if (!allowedEntities.includes(data.entity_id)) {
+    throw new ValidationError('Entity not allowed')
   }
   
   return true
@@ -418,7 +418,7 @@ const getSecret = async (secretName: string): Promise<string> => {
 
 // Usage
 const databasePassword = await getSecret('database-password')
-const connectionString = `postgresql://trading_app:${databasePassword}@db-host:5432/timescale_prod`
+const connectionString = `postgresql://timeseries_app:${databasePassword}@db-host:5432/timescale_prod`
 ```
 
 ---
@@ -517,7 +517,7 @@ const client = await ClientFactory.fromConnectionString(connectionString, {
 ```typescript
 // Implement efficient batch processing
 class DataProcessor {
-  private batchQueue: PriceTick[] = []
+  private batchQueue: TimeSeriesRecord[] = []
   private batchSize = 10000
   private flushInterval = 1000 // ms
   
@@ -526,8 +526,8 @@ class DataProcessor {
     setInterval(() => this.flushBatch(), this.flushInterval)
   }
   
-  async addTick(tick: PriceTick) {
-    this.batchQueue.push(tick)
+  async addRecord(record: TimeSeriesRecord) {
+    this.batchQueue.push(record)
     
     if (this.batchQueue.length >= this.batchSize) {
       await this.flushBatch()
@@ -540,8 +540,8 @@ class DataProcessor {
     const batch = this.batchQueue.splice(0, this.batchSize)
     
     try {
-      const result = await this.client.insertManyTicks(batch)
-      console.log(`Processed ${result.processed} ticks`)
+      const result = await this.client.insertManyRecords(batch)
+      console.log(`Processed ${result.processed} records`)
     } catch (error) {
       console.error('Batch processing failed:', error)
       // Implement retry logic
@@ -639,23 +639,23 @@ const insertThroughputCounter = new client.Counter({
 
 // Custom TimescaleClient with metrics
 class MetricsTimescaleClient extends TimescaleClient {
-  async insertTick(tick: PriceTick) {
+  async insertRecord(record: TimeSeriesRecord) {
     const timer = queryDurationHistogram.startTimer()
     
     try {
-      await super.insertTick(tick)
-      insertThroughputCounter.inc({ symbol: tick.symbol, type: 'tick' })
+      await super.insertRecord(record)
+      insertThroughputCounter.inc({ entity_id: record.entity_id, type: 'record' })
     } finally {
       timer()
     }
   }
   
-  async insertManyTicks(ticks: PriceTick[]) {
+  async insertManyRecords(records: TimeSeriesRecord[]) {
     const timer = queryDurationHistogram.startTimer()
     
     try {
-      const result = await super.insertManyTicks(ticks)
-      insertThroughputCounter.inc({ symbol: 'batch', type: 'tick' }, result.processed)
+      const result = await super.insertManyRecords(records)
+      insertThroughputCounter.inc({ entity_id: 'batch', type: 'record' }, result.processed)
       return result
     } finally {
       timer()

@@ -11,6 +11,11 @@ import type { SqlInstance } from '../types/internal.ts'
 import { ConfigurationError, ConnectionError, ValidationError } from '../types/errors.ts'
 
 /**
+ * Type for postgres factory function to enable dependency injection
+ */
+type PostgresFactory = typeof postgres
+
+/**
  * Connection string parser result
  */
 interface ParsedConnectionString {
@@ -34,10 +39,16 @@ export class DatabaseConnection {
   private sql: SqlInstance | null = null
   private readonly config: ConnectionConfig
   private readonly logger?: Logger | undefined
+  private readonly postgresFactory: PostgresFactory
 
-  constructor(config: ConnectionConfig, logger?: Logger | undefined) {
+  constructor(
+    config: ConnectionConfig,
+    logger?: Logger | undefined,
+    postgresFactory: PostgresFactory = postgres
+  ) {
     this.config = { ...config }
     this.logger = logger
+    this.postgresFactory = postgresFactory
     this.validateConfiguration()
   }
 
@@ -54,7 +65,7 @@ export class DatabaseConnection {
       this.logger?.debug('Initializing new database connection')
       const postgresConfig = await this.buildPostgresConfig()
 
-      this.sql = postgres(postgresConfig)
+      this.sql = this.postgresFactory(postgresConfig)
 
       // Test the connection
       await this.testConnection()
@@ -498,6 +509,7 @@ export class DatabaseConnection {
 export function createDatabaseConnection(
   config: ConnectionConfig,
   logger?: Logger,
+  postgresFactory?: PostgresFactory,
 ): DatabaseConnection {
-  return new DatabaseConnection(config, logger)
+  return new DatabaseConnection(config, logger, postgresFactory)
 }

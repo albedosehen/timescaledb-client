@@ -7,9 +7,9 @@
  * performance benchmarks, and detailed reporting.
  */
 
-import { parseArgs } from 'https://deno.land/std@0.208.0/cli/parse_args.ts'
-import { ensureDir } from 'https://deno.land/std@0.208.0/fs/ensure_dir.ts'
-import { exists } from 'https://deno.land/std@0.208.0/fs/exists.ts'
+import { parseArgs } from '@std/cli/parse_args'
+import { ensureDir } from '@std/fs/ensure_dir'
+import { exists } from '@std/fs/exists'
 
 interface TestOptions {
   unit: boolean

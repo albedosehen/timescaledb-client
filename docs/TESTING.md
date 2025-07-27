@@ -138,41 +138,43 @@ import { ValidationError } from '../types/errors.ts'
 import { createMockSql } from './fixtures/mock-sql.ts'
 
 describe('TimescaleClient', () => {
-  describe('insertTick', () => {
-    it('should insert valid tick data', async () => {
+  describe('insertRecord', () => {
+    it('should insert valid time-series record', async () => {
       // Arrange
       const mockSql = createMockSql()
       const client = new TimescaleClient(mockSql)
-      const validTick = {
-        symbol: 'BTCUSD',
-        price: 45000,
-        timestamp: '2024-01-15T10:00:00Z'
+      const validRecord = {
+        entity_id: 'sensor_001',
+        time: '2024-01-15T10:00:00Z',
+        value: 23.5,
+        value2: 65.2,
+        metadata: { location: 'warehouse_a', type: 'temperature' }
       }
 
       // Act
-      await client.insertTick(validTick)
+      await client.insertRecord(validRecord)
 
       // Assert
-      assertEquals(mockSql.lastQuery?.includes('INSERT INTO price_ticks'), true)
-      assertEquals(mockSql.lastParameters?.[0], 'BTCUSD')
-      assertEquals(mockSql.lastParameters?.[1], 45000)
+      assertEquals(mockSql.lastQuery?.includes('INSERT INTO time_series_records'), true)
+      assertEquals(mockSql.lastParameters?.[0], 'sensor_001')
+      assertEquals(mockSql.lastParameters?.[1], 23.5)
     })
 
-    it('should reject invalid symbol', async () => {
+    it('should reject invalid entity_id', async () => {
       // Arrange
       const mockSql = createMockSql()
       const client = new TimescaleClient(mockSql, { validateInputs: true })
-      const invalidTick = {
-        symbol: '', // Invalid empty symbol
-        price: 45000,
-        timestamp: '2024-01-15T10:00:00Z'
+      const invalidRecord = {
+        entity_id: '', // Invalid empty entity_id
+        time: '2024-01-15T10:00:00Z',
+        value: 23.5
       }
 
       // Act & Assert
       await assertRejects(
-        () => client.insertTick(invalidTick),
+        () => client.insertRecord(invalidRecord),
         ValidationError,
-        'Symbol must be a non-empty string'
+        'Entity ID must be a non-empty string'
       )
     })
 
@@ -181,31 +183,32 @@ describe('TimescaleClient', () => {
       const mockSql = createMockSql()
       mockSql.shouldThrow = new Error('Connection failed')
       const client = new TimescaleClient(mockSql)
-      const validTick = {
-        symbol: 'BTCUSD',
-        price: 45000,
-        timestamp: '2024-01-15T10:00:00Z'
+      const validRecord = {
+        entity_id: 'sensor_001',
+        time: '2024-01-15T10:00:00Z',
+        value: 23.5
       }
 
       // Act & Assert
       await assertRejects(
-        () => client.insertTick(validTick),
+        () => client.insertRecord(validRecord),
         Error,
         'Connection failed'
       )
     })
   })
 
-  describe('getTicks', () => {
-    it('should return formatted tick data', async () => {
+  describe('getRecords', () => {
+    it('should return formatted time-series records', async () => {
       // Arrange
       const mockSql = createMockSql()
       mockSql.mockResult = [
         {
           time: new Date('2024-01-15T10:00:00Z'),
-          symbol: 'BTCUSD',
-          price: 45000,
-          volume: 1.5
+          entity_id: 'sensor_001',
+          value: 23.5,
+          value2: 65.2,
+          metadata: { location: 'warehouse_a', type: 'temperature' }
         }
       ]
       const client = new TimescaleClient(mockSql)
@@ -215,13 +218,13 @@ describe('TimescaleClient', () => {
       }
 
       // Act
-      const result = await client.getTicks('BTCUSD', timeRange)
+      const result = await client.getRecords('sensor_001', timeRange)
 
       // Assert
       assertEquals(result.length, 1)
-      assertEquals(result[0].symbol, 'BTCUSD')
-      assertEquals(result[0].price, 45000)
-      assertEquals(result[0].timestamp, '2024-01-15T10:00:00.000Z')
+      assertEquals(result[0].entity_id, 'sensor_001')
+      assertEquals(result[0].value, 23.5)
+      assertEquals(result[0].time, '2024-01-15T10:00:00.000Z')
     })
 
     it('should validate time range parameters', async () => {
@@ -235,7 +238,7 @@ describe('TimescaleClient', () => {
 
       // Act & Assert
       await assertRejects(
-        () => client.getTicks('BTCUSD', invalidRange),
+        () => client.getRecords('sensor_001', invalidRange),
         ValidationError,
         'TimeRange.from must be before TimeRange.to'
       )
@@ -255,91 +258,93 @@ import { Validator } from '../utils/validator.ts'
 import { ValidationError } from '../types/errors.ts'
 
 describe('Validator', () => {
-  describe('validateTick', () => {
-    it('should accept valid tick data', () => {
-      const validTick = {
-        symbol: 'BTCUSD',
-        price: 45000.50,
-        volume: 1.25,
-        timestamp: '2024-01-15T10:00:00.000Z'
+  describe('validateTimeSeriesRecord', () => {
+    it('should accept valid time-series record', () => {
+      const validRecord = {
+        entity_id: 'sensor_001',
+        time: '2024-01-15T10:00:00.000Z',
+        value: 23.5,
+        value2: 65.2,
+        metadata: { location: 'warehouse_a', type: 'temperature' }
       }
 
       // Should not throw
-      Validator.validateTick(validTick)
+      Validator.validateTimeSeriesRecord(validRecord)
     })
 
-    it('should reject negative prices', () => {
-      const invalidTick = {
-        symbol: 'BTCUSD',
-        price: -100,
-        timestamp: '2024-01-15T10:00:00.000Z'
+    it('should reject negative values when not allowed', () => {
+      const invalidRecord = {
+        entity_id: 'sensor_001',
+        time: '2024-01-15T10:00:00.000Z',
+        value: -100 // Invalid for temperature sensor
       }
 
       assertThrows(
-        () => Validator.validateTick(invalidTick),
+        () => Validator.validateTimeSeriesRecord(invalidRecord, { allowNegativeValues: false }),
         ValidationError,
-        'Price must be a positive finite number'
+        'Value must be a positive finite number'
       )
     })
 
     it('should reject invalid timestamps', () => {
-      const invalidTick = {
-        symbol: 'BTCUSD',
-        price: 45000,
-        timestamp: 'invalid-date'
+      const invalidRecord = {
+        entity_id: 'sensor_001',
+        time: 'invalid-date',
+        value: 23.5
       }
 
       assertThrows(
-        () => Validator.validateTick(invalidTick),
+        () => Validator.validateTimeSeriesRecord(invalidRecord),
         ValidationError,
         'Invalid timestamp format'
       )
     })
 
-    it('should reject invalid symbol format', () => {
-      const invalidTick = {
-        symbol: 'invalid symbol with spaces',
-        price: 45000,
-        timestamp: '2024-01-15T10:00:00.000Z'
+    it('should reject invalid entity_id format', () => {
+      const invalidRecord = {
+        entity_id: 'invalid entity id with spaces',
+        time: '2024-01-15T10:00:00.000Z',
+        value: 23.5
       }
 
       assertThrows(
-        () => Validator.validateTick(invalidTick),
+        () => Validator.validateTimeSeriesRecord(invalidRecord),
         ValidationError,
-        'Symbol must be 1-20 characters, alphanumeric and underscore only'
+        'Entity ID must be 1-50 characters, alphanumeric and underscore only'
       )
     })
   })
 
-  describe('validateOhlc', () => {
-    it('should accept valid OHLC data', () => {
-      const validOhlc = {
-        symbol: 'ETHUSD',
-        timestamp: '2024-01-15T10:00:00.000Z',
-        open: 3000,
-        high: 3050,
-        low: 2980,
-        close: 3025,
-        volume: 100
+  describe('validateAggregateRecord', () => {
+    it('should accept valid aggregate data', () => {
+      const validAggregate = {
+        entity_id: 'sensor_001',
+        time: '2024-01-15T10:00:00.000Z',
+        bucket: '1h',
+        min_value: 20.0,
+        max_value: 25.0,
+        avg_value: 22.5,
+        count: 60
       }
 
-      Validator.validateOhlc(validOhlc)
+      Validator.validateAggregateRecord(validAggregate)
     })
 
-    it('should reject invalid OHLC relationships', () => {
-      const invalidOhlc = {
-        symbol: 'ETHUSD',
-        timestamp: '2024-01-15T10:00:00.000Z',
-        open: 3000,
-        high: 2900, // Invalid: high < open
-        low: 2980,
-        close: 3025
+    it('should reject invalid aggregate relationships', () => {
+      const invalidAggregate = {
+        entity_id: 'sensor_001',
+        time: '2024-01-15T10:00:00.000Z',
+        bucket: '1h',
+        min_value: 25.0,
+        max_value: 20.0, // Invalid: max < min
+        avg_value: 22.5,
+        count: 60
       }
 
       assertThrows(
-        () => Validator.validateOhlc(invalidOhlc),
+        () => Validator.validateAggregateRecord(invalidAggregate),
         ValidationError,
-        'Invalid OHLC relationship'
+        'Invalid aggregate relationship: max_value must be >= min_value'
       )
     })
   })
@@ -347,9 +352,9 @@ describe('Validator', () => {
   describe('validateBatchSize', () => {
     it('should accept valid batch sizes', () => {
       const validBatch = new Array(1000).fill({
-        symbol: 'BTCUSD',
-        price: 45000,
-        timestamp: '2024-01-15T10:00:00.000Z'
+        entity_id: 'sensor_001',
+        time: '2024-01-15T10:00:00.000Z',
+        value: 23.5
       })
 
       Validator.validateBatchSize(validBatch)
@@ -545,65 +550,68 @@ describe('ConfigPresets', () => {
 Create reusable test data in `fixtures/mock-data.ts`:
 
 ```typescript
-import type { PriceTick, Ohlc } from '../types/interfaces.ts'
+import type { TimeSeriesRecord, AggregateRecord } from '../types/interfaces.ts'
 
-export const sampleTicks: PriceTick[] = [
+export const sampleRecords: TimeSeriesRecord[] = [
   {
-    symbol: 'BTCUSD',
-    price: 45000,
-    volume: 1.5,
-    timestamp: '2024-01-15T10:00:00.000Z'
+    entity_id: 'sensor_001',
+    time: '2024-01-15T10:00:00.000Z',
+    value: 23.5,
+    value2: 65.2,
+    metadata: { location: 'warehouse_a', type: 'temperature' }
   },
   {
-    symbol: 'ETHUSD',
-    price: 3000,
-    volume: 10.0,
-    timestamp: '2024-01-15T10:01:00.000Z'
+    entity_id: 'sensor_002',
+    time: '2024-01-15T10:01:00.000Z',
+    value: 85.3,
+    value2: 1024,
+    metadata: { location: 'server_room', type: 'cpu_usage' }
   },
   {
-    symbol: 'BTCUSD',
-    price: 45100,
-    volume: 2.0,
-    timestamp: '2024-01-15T10:02:00.000Z'
+    entity_id: 'sensor_001',
+    time: '2024-01-15T10:02:00.000Z',
+    value: 24.1,
+    value2: 66.8,
+    metadata: { location: 'warehouse_a', type: 'temperature' }
   }
 ]
 
-export const sampleOhlc: Ohlc[] = [
+export const sampleAggregates: AggregateRecord[] = [
   {
-    symbol: 'BTCUSD',
-    timestamp: '2024-01-15T10:00:00.000Z',
-    open: 45000,
-    high: 45200,
-    low: 44800,
-    close: 45100,
-    volume: 50.5
+    entity_id: 'sensor_001',
+    time: '2024-01-15T10:00:00.000Z',
+    bucket: '1h',
+    min_value: 20.0,
+    max_value: 25.0,
+    avg_value: 22.5,
+    count: 60
   },
   {
-    symbol: 'ETHUSD',
-    timestamp: '2024-01-15T10:00:00.000Z',
-    open: 3000,
-    high: 3050,
-    low: 2980,
-    close: 3025,
-    volume: 200.0
+    entity_id: 'sensor_002',
+    time: '2024-01-15T10:00:00.000Z',
+    bucket: '1h',
+    min_value: 75.0,
+    max_value: 95.0,
+    avg_value: 85.3,
+    count: 60
   }
 ]
 
-export const invalidTicks = {
-  negativePrice: {
-    symbol: 'BTCUSD',
-    price: -100,
-    timestamp: '2024-01-15T10:00:00.000Z'
+export const invalidRecords = {
+  negativeValue: {
+    entity_id: 'sensor_001',
+    time: '2024-01-15T10:00:00.000Z',
+    value: -100
   },
-  invalidSymbol: {
-    symbol: '',
-    price: 45000,
-    timestamp: '2024-01-15T10:00:00.000Z'
+  invalidEntityId: {
+    entity_id: '',
+    time: '2024-01-15T10:00:00.000Z',
+    value: 23.5
   },
   invalidTimestamp: {
-    symbol: 'BTCUSD',
-    price: 45000,
-    timestamp: 'not-a-date'
+    entity_id: 'sensor_001',
+    time: 'not-a-date',
+    value: 23.5
   }
 }
 ```

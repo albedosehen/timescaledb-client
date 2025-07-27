@@ -1,20 +1,19 @@
 /**
  * Select operations for TimescaleDB client
  *
- * Provides optimized SQL queries for retrieving price ticks and OHLC data
- * with time-range filtering, pagination, and streaming support.
+ * Provides optimized SQL queries for retrieving time-series data with generic
+ * entity-based approach supporting any domain (financial, IoT, monitoring, etc.)
  */
 
 import type { SqlInstance } from '../types/internal.ts'
 import type {
-  LatestPrice,
-  MultiSymbolLatest,
-  Ohlc,
-  PriceTick,
+  TimeSeriesRecord,
+  LatestRecord,
+  MultiEntityLatest,
   QueryOptions,
   StreamingOptions,
-  TimeInterval,
   TimeRange,
+  FilterCriteria,
 } from '../types/interfaces.ts'
 import { QueryError, ValidationError } from '../types/errors.ts'
 
@@ -28,12 +27,14 @@ export interface SelectOptions extends QueryOptions {
   readonly customOrderBy?: string
   /** Whether to use streaming for large result sets */
   readonly useStreaming?: boolean
+  /** Additional filter criteria */
+  readonly filters?: FilterCriteria
 }
 
 /**
  * Default select options
  */
-const DEFAULT_SELECT_OPTIONS: Required<SelectOptions> = {
+const DEFAULT_SELECT_OPTIONS: Required<Omit<SelectOptions, 'filters'>> = {
   limit: 1000,
   offset: 0,
   orderBy: { column: 'time', direction: 'desc' },
@@ -42,20 +43,22 @@ const DEFAULT_SELECT_OPTIONS: Required<SelectOptions> = {
   includeMetadata: false,
   customOrderBy: '',
   useStreaming: false,
+  entityTypes: [],
+  entityIds: [],
 }
 
 /**
- * Get price ticks for a specific symbol and time range
+ * Get time-series records for a specific entity and time range
  */
-export async function getTicks(
+export async function getRecords(
   sql: SqlInstance,
-  symbol: string,
+  entityId: string,
   range: TimeRange,
   options: SelectOptions = {},
-): Promise<PriceTick[]> {
+): Promise<TimeSeriesRecord[]> {
   const opts = { ...DEFAULT_SELECT_OPTIONS, ...options }
 
-  validateSymbol(symbol)
+  validateEntityId(entityId)
   validateTimeRange(range)
 
   if (opts.limit > 10000) {
@@ -65,295 +68,334 @@ export async function getTicks(
   try {
     let results: Array<{
       time: string
-      symbol: string
-      price: number
-      volume: number | null
-      exchange?: string | null
-      data_source?: string | null
-      bid_price?: number | null
-      ask_price?: number | null
-      created_at?: string | null
+      entity_id: string
+      value: number
+      value2: number | null
+      value3: number | null
+      value4: number | null
+      metadata?: Record<string, unknown> | null
     }>
 
     if (opts.includeMetadata) {
       results = await sql`
-        SELECT time, symbol, price, volume, exchange, data_source, bid_price, ask_price, created_at
-        FROM price_ticks
-        WHERE symbol = ${symbol} AND time >= ${range.from.toISOString()} AND time < ${range.to.toISOString()}
+        SELECT time, entity_id, value, value2, value3, value4, metadata
+        FROM time_series_data
+        WHERE entity_id = ${entityId}
+          AND time >= ${range.from.toISOString()}
+          AND time < ${range.to.toISOString()}
         ORDER BY time ${opts.orderBy.direction.toUpperCase() === 'DESC' ? sql`DESC` : sql`ASC`}
         LIMIT ${opts.limit} OFFSET ${opts.offset}
       `
     } else {
       results = await sql`
-        SELECT time, symbol, price, volume
-        FROM price_ticks
-        WHERE symbol = ${symbol} AND time >= ${range.from.toISOString()} AND time < ${range.to.toISOString()}
+        SELECT time, entity_id, value, value2, value3, value4
+        FROM time_series_data
+        WHERE entity_id = ${entityId}
+          AND time >= ${range.from.toISOString()}
+          AND time < ${range.to.toISOString()}
         ORDER BY time ${opts.orderBy.direction.toUpperCase() === 'DESC' ? sql`DESC` : sql`ASC`}
         LIMIT ${opts.limit} OFFSET ${opts.offset}
       `
     }
 
     return results.map((row) => ({
-      symbol: row.symbol,
-      price: row.price,
-      volume: row.volume ?? undefined,
-      timestamp: row.time,
+      time: row.time,
+      entity_id: row.entity_id,
+      value: row.value,
+      value2: row.value2 ?? undefined,
+      value3: row.value3 ?? undefined,
+      value4: row.value4 ?? undefined,
+      metadata: opts.includeMetadata ? (row.metadata ?? undefined) : undefined,
     }))
   } catch (error) {
     throw new QueryError(
-      'Failed to retrieve price ticks',
+      'Failed to retrieve time-series records',
       error instanceof Error ? error : new Error(String(error)),
-      'SELECT FROM price_ticks',
-      [symbol, range.from, range.to],
+      'SELECT FROM time_series_data',
+      [entityId, range.from, range.to],
     )
   }
 }
 
 /**
- * Get OHLC data for a specific symbol, interval, and time range
+ * Get time-series records for multiple entities
  */
-export async function getOhlc(
+export async function getMultiEntityRecords(
   sql: SqlInstance,
-  symbol: string,
-  interval: TimeInterval,
+  entityIds: string[],
   range: TimeRange,
   options: SelectOptions = {},
-): Promise<Ohlc[]> {
+): Promise<TimeSeriesRecord[]> {
   const opts = { ...DEFAULT_SELECT_OPTIONS, ...options }
 
-  validateSymbol(symbol)
+  if (entityIds.length === 0) {
+    return []
+  }
+
+  for (const entityId of entityIds) {
+    validateEntityId(entityId)
+  }
   validateTimeRange(range)
-  validateTimeInterval(interval)
 
   if (opts.limit > 10000) {
     throw new ValidationError('Limit cannot exceed 10,000 records', 'limit', opts.limit)
   }
 
   try {
-    const results = await sql`
-      SELECT 
-        time,
-        symbol,
-        open,
-        high,
-        low,
-        close,
-        volume,
-        price_change,
-        price_change_percent
-        ${opts.includeMetadata ? sql`, data_source, created_at` : sql``}
-      FROM ohlc_data
-      WHERE symbol = ${symbol}
-        AND interval_duration = ${interval}
-        AND time >= ${range.from.toISOString()}
-        AND time < ${range.to.toISOString()}
-      ORDER BY time ${opts.orderBy.direction.toUpperCase() === 'DESC' ? sql`DESC` : sql`ASC`}
-      LIMIT ${opts.limit}
-      OFFSET ${opts.offset}
-    ` as Array<{
+    let results: Array<{
       time: string
-      symbol: string
-      open: number
-      high: number
-      low: number
-      close: number
-      volume: number | null
-      price_change: number | null
-      price_change_percent: number | null
-      data_source?: string | null
-      created_at?: string | null
+      entity_id: string
+      value: number
+      value2: number | null
+      value3: number | null
+      value4: number | null
+      metadata?: Record<string, unknown> | null
     }>
 
+    if (opts.includeMetadata) {
+      results = await sql`
+        SELECT time, entity_id, value, value2, value3, value4, metadata
+        FROM time_series_data
+        WHERE entity_id = ANY(${entityIds})
+          AND time >= ${range.from.toISOString()}
+          AND time < ${range.to.toISOString()}
+        ORDER BY time ${opts.orderBy.direction.toUpperCase() === 'DESC' ? sql`DESC` : sql`ASC`}
+        LIMIT ${opts.limit} OFFSET ${opts.offset}
+      `
+    } else {
+      results = await sql`
+        SELECT time, entity_id, value, value2, value3, value4
+        FROM time_series_data
+        WHERE entity_id = ANY(${entityIds})
+          AND time >= ${range.from.toISOString()}
+          AND time < ${range.to.toISOString()}
+        ORDER BY time ${opts.orderBy.direction.toUpperCase() === 'DESC' ? sql`DESC` : sql`ASC`}
+        LIMIT ${opts.limit} OFFSET ${opts.offset}
+      `
+    }
+
     return results.map((row) => ({
-      symbol: row.symbol,
-      timestamp: row.time,
-      open: row.open,
-      high: row.high,
-      low: row.low,
-      close: row.close,
-      volume: row.volume ?? undefined,
+      time: row.time,
+      entity_id: row.entity_id,
+      value: row.value,
+      value2: row.value2 ?? undefined,
+      value3: row.value3 ?? undefined,
+      value4: row.value4 ?? undefined,
+      metadata: opts.includeMetadata ? (row.metadata ?? undefined) : undefined,
     }))
   } catch (error) {
     throw new QueryError(
-      'Failed to retrieve OHLC data',
+      'Failed to retrieve multi-entity time-series records',
       error instanceof Error ? error : new Error(String(error)),
-      'SELECT FROM ohlc_data',
-      [symbol, interval, range.from, range.to],
+      'SELECT FROM time_series_data',
+      [entityIds, range.from, range.to],
     )
   }
 }
 
 /**
- * Generate OHLC data dynamically from tick data using TimescaleDB aggregation functions
+ * Get the most recent record for an entity
  */
-export async function getOhlcFromTicks(
+export async function getLatestRecord(
   sql: SqlInstance,
-  symbol: string,
-  intervalMinutes: number,
-  range: TimeRange,
-  options: SelectOptions = {},
-): Promise<Ohlc[]> {
-  const opts = { ...DEFAULT_SELECT_OPTIONS, ...options }
-
-  validateSymbol(symbol)
-  validateTimeRange(range)
-
-  if (intervalMinutes <= 0) {
-    throw new ValidationError('Interval minutes must be positive', 'intervalMinutes', intervalMinutes)
-  }
-
-  if (opts.limit > 10000) {
-    throw new ValidationError('Limit cannot exceed 10,000 records', 'limit', opts.limit)
-  }
-
-  try {
-    const intervalSpec = `${intervalMinutes} minutes`
-
-    const results = await sql`
-      SELECT
-        time_bucket(${intervalSpec}, time) as bucket,
-        symbol,
-        first(price, time) as open,
-        max(price) as high,
-        min(price) as low,
-        last(price, time) as close,
-        sum(volume) as volume
-      FROM price_ticks
-      WHERE symbol = ${symbol}
-        AND time >= ${range.from.toISOString()}
-        AND time < ${range.to.toISOString()}
-      GROUP BY bucket, symbol
-      ORDER BY bucket ${opts.orderBy.direction.toUpperCase() === 'DESC' ? sql`DESC` : sql`ASC`}
-      LIMIT ${opts.limit}
-      OFFSET ${opts.offset}
-    ` as Array<{
-      bucket: string
-      symbol: string
-      open: number
-      high: number
-      low: number
-      close: number
-      volume: number | null
-    }>
-
-    return results.map((row) => ({
-      symbol: row.symbol,
-      timestamp: row.bucket,
-      open: row.open,
-      high: row.high,
-      low: row.low,
-      close: row.close,
-      volume: row.volume ?? undefined,
-    }))
-  } catch (error) {
-    throw new QueryError(
-      'Failed to generate OHLC from ticks',
-      error instanceof Error ? error : new Error(String(error)),
-      'SELECT time_bucket FROM price_ticks',
-      [symbol, intervalMinutes, range.from, range.to],
-    )
-  }
-}
-
-/**
- * Get the most recent price for a symbol
- */
-export async function getLatestPrice(
-  sql: SqlInstance,
-  symbol: string,
-): Promise<number | null> {
-  validateSymbol(symbol)
+  entityId: string,
+): Promise<LatestRecord | null> {
+  validateEntityId(entityId)
 
   try {
     const results = await sql`
-      SELECT price
-      FROM price_ticks
-      WHERE symbol = ${symbol}
+      SELECT time, entity_id, value, value2, value3, value4, metadata
+      FROM time_series_data
+      WHERE entity_id = ${entityId}
       ORDER BY time DESC
       LIMIT 1
-    ` as Array<{ price: number }>
+    ` as Array<{
+      time: string
+      entity_id: string
+      value: number
+      value2: number | null
+      value3: number | null
+      value4: number | null
+      metadata: Record<string, unknown> | null
+    }>
 
-    return results.length > 0 ? results[0]!.price : null
+    if (results.length === 0) {
+      return null
+    }
+
+    const row = results[0]!
+    return {
+      entity_id: row.entity_id,
+      value: row.value,
+      value2: row.value2 ?? undefined,
+      value3: row.value3 ?? undefined,
+      value4: row.value4 ?? undefined,
+      metadata: row.metadata ?? undefined,
+      time: new Date(row.time),
+    }
   } catch (error) {
     throw new QueryError(
-      'Failed to retrieve latest price',
+      'Failed to retrieve latest record',
       error instanceof Error ? error : new Error(String(error)),
-      'SELECT price FROM price_ticks',
-      [symbol],
+      'SELECT FROM time_series_data',
+      [entityId],
     )
   }
 }
 
 /**
- * Get latest prices for multiple symbols efficiently
+ * Get latest records for multiple entities efficiently
  */
-export async function getMultiSymbolLatest(
+export async function getMultiEntityLatest(
   sql: SqlInstance,
-  symbols: string[],
-): Promise<MultiSymbolLatest> {
-  if (symbols.length === 0) {
+  entityIds: string[],
+): Promise<MultiEntityLatest> {
+  if (entityIds.length === 0) {
     return {
-      prices: [],
+      records: [],
       retrievedAt: new Date(),
       requested: 0,
       found: 0,
     }
   }
 
-  for (const symbol of symbols) {
-    validateSymbol(symbol)
+  for (const entityId of entityIds) {
+    validateEntityId(entityId)
   }
 
   try {
     const results = await sql`
-      SELECT DISTINCT ON (symbol)
-        symbol,
-        price,
-        volume,
+      SELECT DISTINCT ON (entity_id)
+        entity_id,
+        value,
+        value2,
+        value3,
+        value4,
+        metadata,
         time
-      FROM price_ticks
-      WHERE symbol = ANY(${symbols})
-      ORDER BY symbol, time DESC
+      FROM time_series_data
+      WHERE entity_id = ANY(${entityIds})
+      ORDER BY entity_id, time DESC
     ` as Array<{
-      symbol: string
-      price: number
-      volume: number | null
+      entity_id: string
+      value: number
+      value2: number | null
+      value3: number | null
+      value4: number | null
+      metadata: Record<string, unknown> | null
       time: string
     }>
 
-    const prices: LatestPrice[] = results.map((row) => ({
-      symbol: row.symbol,
-      price: row.price,
-      volume: row.volume ?? undefined,
-      timestamp: new Date(row.time),
+    const records: LatestRecord[] = results.map((row) => ({
+      entity_id: row.entity_id,
+      value: row.value,
+      value2: row.value2 ?? undefined,
+      value3: row.value3 ?? undefined,
+      value4: row.value4 ?? undefined,
+      metadata: row.metadata ?? undefined,
+      time: new Date(row.time),
     }))
 
     return {
-      prices,
+      records,
       retrievedAt: new Date(),
-      requested: symbols.length,
-      found: prices.length,
+      requested: entityIds.length,
+      found: records.length,
     }
   } catch (error) {
     throw new QueryError(
-      'Failed to retrieve multi-symbol latest prices',
+      'Failed to retrieve multi-entity latest records',
       error instanceof Error ? error : new Error(String(error)),
-      'SELECT DISTINCT ON (symbol) FROM price_ticks',
-      symbols,
+      'SELECT DISTINCT ON (entity_id) FROM time_series_data',
+      entityIds,
     )
   }
 }
 
 /**
- * Stream large tick datasets to avoid memory issues
+ * Get records by entity type and time range
  */
-export async function* getTicksStream(
+export async function getRecordsByEntityType(
   sql: SqlInstance,
-  symbol: string,
+  entityType: string,
+  range: TimeRange,
+  options: SelectOptions = {},
+): Promise<TimeSeriesRecord[]> {
+  const opts = { ...DEFAULT_SELECT_OPTIONS, ...options }
+
+  validateEntityType(entityType)
+  validateTimeRange(range)
+
+  if (opts.limit > 10000) {
+    throw new ValidationError('Limit cannot exceed 10,000 records', 'limit', opts.limit)
+  }
+
+  try {
+    let results: Array<{
+      time: string
+      entity_id: string
+      value: number
+      value2: number | null
+      value3: number | null
+      value4: number | null
+      metadata?: Record<string, unknown> | null
+    }>
+
+    if (opts.includeMetadata) {
+      results = await sql`
+        SELECT tsd.time, tsd.entity_id, tsd.value, tsd.value2, tsd.value3, tsd.value4, tsd.metadata
+        FROM time_series_data tsd
+        JOIN entities e ON tsd.entity_id = e.entity_id
+        WHERE e.entity_type = ${entityType}
+          AND tsd.time >= ${range.from.toISOString()}
+          AND tsd.time < ${range.to.toISOString()}
+          AND e.is_active = TRUE
+        ORDER BY tsd.time ${opts.orderBy.direction.toUpperCase() === 'DESC' ? sql`DESC` : sql`ASC`}
+        LIMIT ${opts.limit} OFFSET ${opts.offset}
+      `
+    } else {
+      results = await sql`
+        SELECT tsd.time, tsd.entity_id, tsd.value, tsd.value2, tsd.value3, tsd.value4
+        FROM time_series_data tsd
+        JOIN entities e ON tsd.entity_id = e.entity_id
+        WHERE e.entity_type = ${entityType}
+          AND tsd.time >= ${range.from.toISOString()}
+          AND tsd.time < ${range.to.toISOString()}
+          AND e.is_active = TRUE
+        ORDER BY tsd.time ${opts.orderBy.direction.toUpperCase() === 'DESC' ? sql`DESC` : sql`ASC`}
+        LIMIT ${opts.limit} OFFSET ${opts.offset}
+      `
+    }
+
+    return results.map((row) => ({
+      time: row.time,
+      entity_id: row.entity_id,
+      value: row.value,
+      value2: row.value2 ?? undefined,
+      value3: row.value3 ?? undefined,
+      value4: row.value4 ?? undefined,
+      metadata: opts.includeMetadata ? (row.metadata ?? undefined) : undefined,
+    }))
+  } catch (error) {
+    throw new QueryError(
+      'Failed to retrieve records by entity type',
+      error instanceof Error ? error : new Error(String(error)),
+      'SELECT FROM time_series_data JOIN entities',
+      [entityType, range.from, range.to],
+    )
+  }
+}
+
+/**
+ * Stream large time-series datasets to avoid memory issues
+ */
+export async function* getRecordsStream(
+  sql: SqlInstance,
+  entityId: string,
   range: TimeRange,
   options: StreamingOptions = {},
-): AsyncIterable<PriceTick[]> {
-  validateSymbol(symbol)
+): AsyncIterable<TimeSeriesRecord[]> {
+  validateEntityId(entityId)
   validateTimeRange(range)
 
   const batchSize = options.batchSize || 1000
@@ -362,160 +404,248 @@ export async function* getTicksStream(
     const cursor = sql`
       SELECT 
         time,
-        symbol,
-        price,
-        volume
-      FROM price_ticks
-      WHERE symbol = ${symbol}
+        entity_id,
+        value,
+        value2,
+        value3,
+        value4,
+        metadata
+      FROM time_series_data
+      WHERE entity_id = ${entityId}
         AND time >= ${range.from.toISOString()}
         AND time < ${range.to.toISOString()}
       ORDER BY time DESC
     `.cursor(batchSize)
 
     for await (const rows of cursor) {
-      const ticks: PriceTick[] = (rows as { symbol: string; price: number; volume: number | null; time: string }[]).map(
-        (row) => ({
-          symbol: row.symbol,
-          price: row.price,
-          volume: row.volume ?? undefined,
-          timestamp: row.time,
-        }),
-      )
-
-      yield ticks
-    }
-  } catch (error) {
-    throw new QueryError(
-      'Failed to stream price ticks',
-      error instanceof Error ? error : new Error(String(error)),
-      'SELECT FROM price_ticks (streaming)',
-      [symbol, range.from, range.to],
-    )
-  }
-}
-
-/**
- * Stream OHLC data for large datasets
- */
-export async function* getOhlcStream(
-  sql: SqlInstance,
-  symbol: string,
-  interval: TimeInterval,
-  range: TimeRange,
-  options: StreamingOptions = {},
-): AsyncIterable<Ohlc[]> {
-  validateSymbol(symbol)
-  validateTimeRange(range)
-  validateTimeInterval(interval)
-
-  const batchSize = options.batchSize || 1000
-
-  try {
-    const cursor = sql`
-      SELECT 
-        time,
-        symbol,
-        open,
-        high,
-        low,
-        close,
-        volume
-      FROM ohlc_data
-      WHERE symbol = ${symbol}
-        AND interval_duration = ${interval}
-        AND time >= ${range.from.toISOString()}
-        AND time < ${range.to.toISOString()}
-      ORDER BY time DESC
-    `.cursor(batchSize)
-
-    for await (const rows of cursor) {
-      const candles: Ohlc[] = (rows as {
-        symbol: string
+      const records: TimeSeriesRecord[] = (rows as Array<{
         time: string
-        open: number
-        high: number
-        low: number
-        close: number
-        volume: number | null
-      }[]).map((row) => ({
-        symbol: row.symbol,
-        timestamp: row.time,
-        open: row.open,
-        high: row.high,
-        low: row.low,
-        close: row.close,
-        volume: row.volume ?? undefined,
+        entity_id: string
+        value: number
+        value2: number | null
+        value3: number | null
+        value4: number | null
+        metadata: Record<string, unknown> | null
+      }>).map((row) => ({
+        time: row.time,
+        entity_id: row.entity_id,
+        value: row.value,
+        value2: row.value2 ?? undefined,
+        value3: row.value3 ?? undefined,
+        value4: row.value4 ?? undefined,
+        metadata: row.metadata ?? undefined,
       }))
 
-      yield candles
+      yield records
     }
   } catch (error) {
     throw new QueryError(
-      'Failed to stream OHLC data',
+      'Failed to stream time-series records',
       error instanceof Error ? error : new Error(String(error)),
-      'SELECT FROM ohlc_data (streaming)',
-      [symbol, interval, range.from, range.to],
+      'SELECT FROM time_series_data (streaming)',
+      [entityId, range.from, range.to],
     )
   }
 }
 
 /**
- * Get available symbols with their metadata
+ * Get available entities with their metadata
  */
-export async function getAvailableSymbols(
+export async function getAvailableEntities(
   sql: SqlInstance,
   options: SelectOptions = {},
-): Promise<Array<{ symbol: string; assetType: string; exchange?: string; isActive: boolean }>> {
+): Promise<Array<{ entity_id: string; entity_type: string; name?: string; is_active: boolean; metadata?: Record<string, unknown> }>> {
   const opts = { ...DEFAULT_SELECT_OPTIONS, ...options }
 
   try {
     const results = await sql`
       SELECT 
-        symbol,
-        asset_type,
-        exchange,
-        is_active
-      FROM symbols
+        entity_id,
+        entity_type,
+        name,
+        is_active,
+        metadata
+      FROM entities
       WHERE is_active = true
-      ORDER BY symbol
+      ORDER BY entity_type, entity_id
       LIMIT ${opts.limit}
       OFFSET ${opts.offset}
     ` as Array<{
-      symbol: string
-      asset_type: string
-      exchange: string | null
+      entity_id: string
+      entity_type: string
+      name: string | null
       is_active: boolean
+      metadata: Record<string, unknown> | null
     }>
 
     return results.map((row) => ({
-      symbol: row.symbol,
-      assetType: row.asset_type,
-      exchange: row.exchange ?? undefined,
-      isActive: row.is_active,
-    })) as Array<{ symbol: string; assetType: string; exchange?: string; isActive: boolean }>
+      entity_id: row.entity_id,
+      entity_type: row.entity_type,
+      ...(row.name !== null && { name: row.name }),
+      is_active: row.is_active,
+      ...(row.metadata !== null && { metadata: row.metadata }),
+    }))
   } catch (error) {
     throw new QueryError(
-      'Failed to retrieve available symbols',
+      'Failed to retrieve available entities',
       error instanceof Error ? error : new Error(String(error)),
-      'SELECT FROM symbols',
+      'SELECT FROM entities',
     )
   }
 }
 
 /**
- * Validate symbol format
+ * Get entities by type
  */
-function validateSymbol(symbol: string): void {
-  if (!symbol || typeof symbol !== 'string' || symbol.trim().length === 0) {
-    throw new ValidationError('Symbol is required and must be a non-empty string', 'symbol', symbol)
+export async function getEntitiesByType(
+  sql: SqlInstance,
+  entityType: string,
+  options: SelectOptions = {},
+): Promise<Array<{ entity_id: string; name?: string; metadata?: Record<string, unknown> }>> {
+  const opts = { ...DEFAULT_SELECT_OPTIONS, ...options }
+  validateEntityType(entityType)
+
+  try {
+    const results = await sql`
+      SELECT
+        entity_id,
+        name,
+        metadata
+      FROM entities
+      WHERE entity_type = ${entityType} AND is_active = true
+      ORDER BY entity_id
+      LIMIT ${opts.limit}
+      OFFSET ${opts.offset}
+    ` as Array<{
+      entity_id: string
+      name: string | null
+      metadata: Record<string, unknown> | null
+    }>
+
+    return results.map((row) => ({
+      entity_id: row.entity_id,
+      ...(row.name !== null && { name: row.name }),
+      ...(row.metadata !== null && { metadata: row.metadata }),
+    }))
+  } catch (error) {
+    throw new QueryError(
+      'Failed to retrieve entities by type',
+      error instanceof Error ? error : new Error(String(error)),
+      'SELECT FROM entities',
+      [entityType],
+    )
+  }
+}
+
+/**
+ * Search records with advanced filtering
+ */
+export async function searchRecords(
+  sql: SqlInstance,
+  filters: FilterCriteria,
+  range: TimeRange,
+  options: SelectOptions = {},
+): Promise<TimeSeriesRecord[]> {
+  const opts = { ...DEFAULT_SELECT_OPTIONS, ...options }
+  validateTimeRange(range)
+
+  try {
+    // Build dynamic WHERE clause based on filters
+    let whereClause = sql`tsd.time >= ${range.from.toISOString()} AND tsd.time < ${range.to.toISOString()}`
+
+    if (filters.entityIdPattern) {
+      whereClause = sql`${whereClause} AND tsd.entity_id LIKE ${filters.entityIdPattern}`
+    }
+
+    if (filters.entityTypes && filters.entityTypes.length > 0) {
+      whereClause = sql`${whereClause} AND e.entity_type = ANY(${filters.entityTypes})`
+    }
+
+    if (filters.valueRange) {
+      if (filters.valueRange.min !== undefined) {
+        whereClause = sql`${whereClause} AND tsd.value >= ${filters.valueRange.min}`
+      }
+      if (filters.valueRange.max !== undefined) {
+        whereClause = sql`${whereClause} AND tsd.value <= ${filters.valueRange.max}`
+      }
+    }
+
+    if (filters.value2Range) {
+      if (filters.value2Range.min !== undefined) {
+        whereClause = sql`${whereClause} AND tsd.value2 >= ${filters.value2Range.min}`
+      }
+      if (filters.value2Range.max !== undefined) {
+        whereClause = sql`${whereClause} AND tsd.value2 <= ${filters.value2Range.max}`
+      }
+    }
+
+    const results = await sql`
+      SELECT tsd.time, tsd.entity_id, tsd.value, tsd.value2, tsd.value3, tsd.value4, tsd.metadata
+      FROM time_series_data tsd
+      JOIN entities e ON tsd.entity_id = e.entity_id
+      WHERE ${whereClause} AND e.is_active = TRUE
+      ORDER BY tsd.time ${opts.orderBy.direction.toUpperCase() === 'DESC' ? sql`DESC` : sql`ASC`}
+      LIMIT ${opts.limit} OFFSET ${opts.offset}
+    ` as Array<{
+      time: string
+      entity_id: string
+      value: number
+      value2: number | null
+      value3: number | null
+      value4: number | null
+      metadata: Record<string, unknown> | null
+    }>
+
+    return results.map((row) => ({
+      time: row.time,
+      entity_id: row.entity_id,
+      value: row.value,
+      value2: row.value2 ?? undefined,
+      value3: row.value3 ?? undefined,
+      value4: row.value4 ?? undefined,
+      metadata: row.metadata ?? undefined,
+    }))
+  } catch (error) {
+    throw new QueryError(
+      'Failed to search records with filters',
+      error instanceof Error ? error : new Error(String(error)),
+      'SELECT FROM time_series_data with filters',
+      [filters, range.from, range.to],
+    )
+  }
+}
+
+/**
+ * Validate entity ID format
+ */
+function validateEntityId(entityId: string): void {
+  if (!entityId || typeof entityId !== 'string' || entityId.trim().length === 0) {
+    throw new ValidationError('Entity ID is required and must be a non-empty string', 'entityId', entityId)
   }
 
-  if (symbol.length > 20) {
-    throw new ValidationError('Symbol must be 20 characters or less', 'symbol', symbol)
+  if (entityId.length > 100) {
+    throw new ValidationError('Entity ID must be 100 characters or less', 'entityId', entityId)
   }
 
-  if (!/^[A-Z0-9_]+$/.test(symbol)) {
-    throw new ValidationError('Symbol must contain only uppercase letters, numbers, and underscores', 'symbol', symbol)
+  if (!/^[A-Za-z0-9_.-]+$/.test(entityId)) {
+    throw new ValidationError('Entity ID must contain only letters, numbers, underscores, dots, and dashes', 'entityId', entityId)
+  }
+}
+
+/**
+ * Validate entity type format
+ */
+function validateEntityType(entityType: string): void {
+  if (!entityType || typeof entityType !== 'string' || entityType.trim().length === 0) {
+    throw new ValidationError('Entity type is required and must be a non-empty string', 'entityType', entityType)
+  }
+
+  if (entityType.length > 50) {
+    throw new ValidationError('Entity type must be 50 characters or less', 'entityType', entityType)
+  }
+
+  if (!/^[a-z_]+$/.test(entityType)) {
+    throw new ValidationError('Entity type must contain only lowercase letters and underscores', 'entityType', entityType)
   }
 }
 
@@ -544,21 +674,6 @@ function validateTimeRange(range: TimeRange): void {
       `Time range cannot exceed ${maxRangeDays} days`,
       'range',
       `${rangeDays} days`,
-    )
-  }
-}
-
-/**
- * Validate time interval
- */
-function validateTimeInterval(interval: TimeInterval): void {
-  const validIntervals: TimeInterval[] = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w']
-
-  if (!validIntervals.includes(interval)) {
-    throw new ValidationError(
-      `Invalid time interval. Must be one of: ${validIntervals.join(', ')}`,
-      'interval',
-      interval,
     )
   }
 }

@@ -59,17 +59,18 @@ const runDiagnostics = async () => {
     
     // 5. Test basic operations
     console.log('5. Testing basic operations...')
-    const testTick = {
-      symbol: 'DIAGNOSTIC_TEST',
-      price: 100.50,
-      timestamp: new Date().toISOString()
+    const testRecord = {
+      entity_id: 'diagnostic_test_sensor',
+      time: new Date().toISOString(),
+      value: 100.50,
+      metadata: { type: 'diagnostic', location: 'test_environment' }
     }
     
-    await client.insertTick(testTick)
+    await client.insertRecord(testRecord)
     console.log('✅ Insert operation successful')
     
-    const latestPrice = await client.getLatestPrice('DIAGNOSTIC_TEST')
-    console.log(`✅ Query operation successful: ${latestPrice}`)
+    const latestValue = await client.getLatestValue('diagnostic_test_sensor')
+    console.log(`✅ Query operation successful: ${latestValue}`)
     
     // 6. Cleanup
     await client.close()
@@ -110,13 +111,15 @@ runDiagnostics()
 ### Issue: "Connection Refused" Error
 
 **Symptoms:**
-```
+
+```text
 Error: connect ECONNREFUSED 127.0.0.1:5432
 ```
 
 **Causes & Solutions:**
 
 1. **Database server not running**
+
    ```bash
    # Check if PostgreSQL is running
    sudo systemctl status postgresql
@@ -126,6 +129,7 @@ Error: connect ECONNREFUSED 127.0.0.1:5432
    ```
 
 2. **Wrong connection parameters**
+
    ```typescript
    // Verify connection string format
    const connectionString = 'postgresql://username:password@host:port/database'
@@ -139,6 +143,7 @@ Error: connect ECONNREFUSED 127.0.0.1:5432
    ```
 
 3. **Firewall blocking connection**
+
    ```bash
    # Check if port is open
    telnet localhost 5432
@@ -150,13 +155,15 @@ Error: connect ECONNREFUSED 127.0.0.1:5432
 ### Issue: "Authentication Failed" Error
 
 **Symptoms:**
-```
+
+```text
 Error: password authentication failed for user "username"
 ```
 
 **Solutions:**
 
 1. **Verify credentials**
+
    ```typescript
    // Test with psql command line
    // psql -h localhost -p 5432 -U username -d database
@@ -170,6 +177,7 @@ Error: password authentication failed for user "username"
    ```
 
 2. **Fix pg_hba.conf configuration**
+
    ```bash
    # Edit pg_hba.conf (usually in /etc/postgresql/*/main/)
    # Add or modify line:
@@ -180,6 +188,7 @@ Error: password authentication failed for user "username"
    ```
 
 3. **Reset user password**
+
    ```sql
    -- Connect as superuser and reset password
    ALTER USER username WITH PASSWORD 'new_password';
@@ -188,13 +197,15 @@ Error: password authentication failed for user "username"
 ### Issue: "SSL Connection Required" Error
 
 **Symptoms:**
-```
+
+```text
 Error: connection requires SSL
 ```
 
 **Solutions:**
 
 1. **Configure SSL in connection string**
+
    ```typescript
    // Add SSL parameters to connection string
    const connectionString = 'postgresql://user:pass@host:5432/db?sslmode=require'
@@ -204,6 +215,7 @@ Error: connection requires SSL
    ```
 
 2. **Provide SSL certificates**
+
    ```typescript
    const client = await ClientFactory.fromConfig({
      host: 'localhost',
@@ -223,13 +235,15 @@ Error: connection requires SSL
 ### Issue: "Too Many Connections" Error
 
 **Symptoms:**
-```
+
+```text
 Error: too many connections for role "username"
 ```
 
 **Solutions:**
 
 1. **Increase connection limit**
+
    ```sql
    -- Check current limits
    SELECT usename, usecreatedb, usesuper FROM pg_user;
@@ -243,6 +257,7 @@ Error: too many connections for role "username"
    ```
 
 2. **Implement connection pooling**
+
    ```typescript
    // Use PgBouncer or configure client pooling
    const client = await ClientFactory.fromConnectionString(connectionString, {
@@ -253,6 +268,7 @@ Error: too many connections for role "username"
    ```
 
 3. **Close connections properly**
+
    ```typescript
    // Always close client when done
    process.on('SIGINT', async () => {
@@ -268,6 +284,7 @@ Error: too many connections for role "username"
 ### Issue: Slow Query Performance
 
 **Symptoms:**
+
 - Queries taking longer than expected
 - High CPU usage on database server
 - Timeouts on large queries
@@ -275,15 +292,17 @@ Error: too many connections for role "username"
 **Diagnostic Steps:**
 
 1. **Check query execution plans**
+
    ```sql
    -- Analyze query performance
-   EXPLAIN (ANALYZE, BUFFERS) 
-   SELECT * FROM price_ticks 
-   WHERE symbol = 'BTCUSD' 
+   EXPLAIN (ANALYZE, BUFFERS)
+   SELECT * FROM time_series_records
+   WHERE entity_id = 'sensor_001'
    AND time >= NOW() - INTERVAL '1 day';
    ```
 
 2. **Monitor slow queries**
+
    ```sql
    -- Enable query logging
    SET log_min_duration_statement = 1000;
@@ -303,35 +322,38 @@ Error: too many connections for role "username"
 **Solutions:**
 
 1. **Optimize indexes**
+
    ```sql
    -- Create covering indexes
-   CREATE INDEX CONCURRENTLY idx_price_ticks_symbol_time_price 
-   ON price_ticks (symbol, time DESC) 
-   INCLUDE (price, volume);
+   CREATE INDEX CONCURRENTLY idx_time_series_records_entity_time_value
+   ON time_series_records (entity_id, time DESC)
+   INCLUDE (value, value2);
    
    -- Create partial indexes for common queries
-   CREATE INDEX CONCURRENTLY idx_price_ticks_recent 
-   ON price_ticks (symbol, time DESC) 
+   CREATE INDEX CONCURRENTLY idx_time_series_records_recent
+   ON time_series_records (entity_id, time DESC)
    WHERE time >= NOW() - INTERVAL '7 days';
    ```
 
 2. **Use appropriate query limits**
+
    ```typescript
    // Limit result sets
-   const ticks = await client.getTicks('BTCUSD', {
+   const records = await client.getRecords('sensor_001', {
      from: new Date('2024-01-01'),
      to: new Date('2024-01-02'),
      limit: 10000  // Don't fetch unlimited results
    })
    
    // Use streaming for large datasets
-   const tickStream = await client.getTicksStream('BTCUSD', timeRange)
-   for await (const batch of tickStream) {
+   const recordStream = await client.getRecordsStream('sensor_001', timeRange)
+   for await (const batch of recordStream) {
      // Process in batches
    }
    ```
 
 3. **Optimize time range queries**
+
    ```typescript
    // Use efficient time ranges
    const optimizedRange = {
@@ -344,6 +366,7 @@ Error: too many connections for role "username"
 ### Issue: High Memory Usage
 
 **Symptoms:**
+
 - Application consuming excessive memory
 - Out of memory errors
 - Garbage collection pauses
@@ -351,6 +374,7 @@ Error: too many connections for role "username"
 **Solutions:**
 
 1. **Use streaming for large datasets**
+
    ```typescript
    // Instead of loading all data into memory
    const allTicks = await client.getTicks('BTCUSD', largeTimeRange) // ❌ Bad
@@ -364,6 +388,7 @@ Error: too many connections for role "username"
    ```
 
 2. **Implement proper batch processing**
+
    ```typescript
    // Process data in manageable chunks
    const processBatchedData = async (symbols: string[]) => {
@@ -385,6 +410,7 @@ Error: too many connections for role "username"
    ```
 
 3. **Configure appropriate limits**
+
    ```typescript
    const client = await ClientFactory.fromConnectionString(connectionString, {
      defaultBatchSize: 5000,        // Reasonable batch size
@@ -397,6 +423,7 @@ Error: too many connections for role "username"
 ### Issue: Slow Batch Inserts
 
 **Symptoms:**
+
 - Batch operations taking too long
 - Low throughput for data ingestion
 - Database locks during inserts
@@ -404,6 +431,7 @@ Error: too many connections for role "username"
 **Solutions:**
 
 1. **Optimize batch size**
+
    ```typescript
    // Test different batch sizes
    const testBatchSizes = [1000, 5000, 10000, 25000]
@@ -413,25 +441,26 @@ Error: too many connections for role "username"
        const testData = generateTestData(batchSize)
        
        const start = performance.now()
-       await client.insertManyTicks(testData, { batchSize })
+       await client.insertManyRecords(testData, { batchSize })
        const duration = performance.now() - start
        
-       console.log(`Batch size ${batchSize}: ${duration}ms (${batchSize/duration*1000} ticks/sec)`)
+       console.log(`Batch size ${batchSize}: ${duration}ms (${batchSize/duration*1000} records/sec)`)
      }
    }
    ```
 
 2. **Use transactions efficiently**
+
    ```typescript
    // Group operations in transactions
-   const efficientBatchInsert = async (ticks: PriceTick[]) => {
+   const efficientBatchInsert = async (records: TimeSeriesRecord[]) => {
      const BATCH_SIZE = 10000
      
-     for (let i = 0; i < ticks.length; i += BATCH_SIZE) {
-       const batch = ticks.slice(i, i + BATCH_SIZE)
+     for (let i = 0; i < records.length; i += BATCH_SIZE) {
+       const batch = records.slice(i, i + BATCH_SIZE)
        
        // Each batch uses its own transaction
-       await client.insertManyTicks(batch, { 
+       await client.insertManyRecords(batch, {
          useTransaction: true,
          batchSize: BATCH_SIZE
        })
@@ -440,6 +469,7 @@ Error: too many connections for role "username"
    ```
 
 3. **Disable validation for bulk operations**
+
    ```typescript
    // For trusted data sources, disable validation
    const client = await ClientFactory.fromConnectionString(connectionString, {
@@ -455,7 +485,8 @@ Error: too many connections for role "username"
 ### Issue: Data Validation Errors
 
 **Symptoms:**
-```
+
+```text
 ValidationError: Invalid price value: -50.25
 ValidationError: Symbol 'invalid_symbol!' contains invalid characters
 ```
@@ -463,27 +494,28 @@ ValidationError: Symbol 'invalid_symbol!' contains invalid characters
 **Solutions:**
 
 1. **Implement proper validation**
+
    ```typescript
    import { Validators } from 'timescaledb-client'
    
-   const validateBeforeInsert = (tick: PriceTick) => {
+   const validateBeforeInsert = (record: TimeSeriesRecord) => {
      // Use built-in validators
-     if (!Validators.isValidPriceTick(tick)) {
-       throw new Error('Invalid price tick data')
+     if (!Validators.isValidTimeSeriesRecord(record)) {
+       throw new Error('Invalid time-series record data')
      }
      
      // Custom business logic validation
-     if (tick.price <= 0) {
-       throw new Error('Price must be positive')
+     if (record.value === null || record.value === undefined) {
+       throw new Error('Value is required')
      }
      
-     if (tick.volume !== undefined && tick.volume < 0) {
-       throw new Error('Volume cannot be negative')
+     if (record.value2 !== undefined && record.value2 < 0) {
+       throw new Error('Value2 cannot be negative for this sensor type')
      }
      
-     // Symbol format validation
-     if (!/^[A-Z0-9_]+$/.test(tick.symbol)) {
-       throw new Error('Symbol contains invalid characters')
+     // Entity ID format validation
+     if (!/^[a-zA-Z0-9_]+$/.test(record.entity_id)) {
+       throw new Error('Entity ID contains invalid characters')
      }
      
      return true
@@ -491,15 +523,16 @@ ValidationError: Symbol 'invalid_symbol!' contains invalid characters
    ```
 
 2. **Handle validation errors gracefully**
+
    ```typescript
-   const insertWithValidation = async (tick: PriceTick) => {
+   const insertWithValidation = async (record: TimeSeriesRecord) => {
      try {
-       await client.insertTick(tick)
+       await client.insertRecord(record)
      } catch (error) {
        if (error instanceof ValidationError) {
          console.warn('Validation failed:', error.field, error.value)
          // Log invalid data for review
-         logger.warn('Invalid data rejected', { tick, error: error.message })
+         logger.warn('Invalid data rejected', { record, error: error.message })
        } else {
          throw error
        }
@@ -508,13 +541,17 @@ ValidationError: Symbol 'invalid_symbol!' contains invalid characters
    ```
 
 3. **Clean data before insertion**
+
    ```typescript
-   const cleanPriceTick = (rawTick: any): PriceTick => {
+   const cleanTimeSeriesRecord = (rawRecord: any): TimeSeriesRecord => {
      return {
-       symbol: rawTick.symbol?.toUpperCase().replace(/[^A-Z0-9_]/g, ''),
-       price: Math.abs(Number(rawTick.price)) || 0,
-       volume: rawTick.volume ? Math.abs(Number(rawTick.volume)) : undefined,
-       timestamp: new Date(rawTick.timestamp).toISOString()
+       entity_id: rawRecord.entity_id?.toLowerCase().replace(/[^a-z0-9_]/g, ''),
+       time: new Date(rawRecord.time).toISOString(),
+       value: Number(rawRecord.value) || 0,
+       value2: rawRecord.value2 ? Number(rawRecord.value2) : undefined,
+       value3: rawRecord.value3 ? Number(rawRecord.value3) : undefined,
+       value4: rawRecord.value4 ? Number(rawRecord.value4) : undefined,
+       metadata: rawRecord.metadata || {}
      }
    }
    ```
@@ -522,6 +559,7 @@ ValidationError: Symbol 'invalid_symbol!' contains invalid characters
 ### Issue: Duplicate Data
 
 **Symptoms:**
+
 - Duplicate records in database
 - Constraint violations
 - Data inconsistency
@@ -529,26 +567,28 @@ ValidationError: Symbol 'invalid_symbol!' contains invalid characters
 **Solutions:**
 
 1. **Use upsert operations**
+
    ```typescript
    // Enable upsert to handle duplicates
-   await client.insertTick(tick, { upsert: true })
+   await client.insertRecord(record, { upsert: true })
    
    // For batch operations
-   await client.insertManyTicks(ticks, { upsert: true })
+   await client.insertManyRecords(records, { upsert: true })
    ```
 
 2. **Implement deduplication**
+
    ```typescript
-   const deduplicateData = (ticks: PriceTick[]): PriceTick[] => {
+   const deduplicateData = (records: TimeSeriesRecord[]): TimeSeriesRecord[] => {
      const seen = new Set<string>()
-     const unique: PriceTick[] = []
+     const unique: TimeSeriesRecord[] = []
      
-     for (const tick of ticks) {
-       const key = `${tick.symbol}:${tick.timestamp}`
+     for (const record of records) {
+       const key = `${record.entity_id}:${record.time}`
        
        if (!seen.has(key)) {
          seen.add(key)
-         unique.push(tick)
+         unique.push(record)
        }
      }
      
@@ -557,16 +597,18 @@ ValidationError: Symbol 'invalid_symbol!' contains invalid characters
    ```
 
 3. **Add database constraints**
+
    ```sql
    -- Add unique constraint to prevent duplicates
-   ALTER TABLE price_ticks 
-   ADD CONSTRAINT unique_symbol_time 
-   UNIQUE (symbol, time);
+   ALTER TABLE time_series_records
+   ADD CONSTRAINT unique_entity_time
+   UNIQUE (entity_id, time);
    ```
 
 ### Issue: Missing Data
 
 **Symptoms:**
+
 - Gaps in time series data
 - Expected records not found
 - Incomplete data sets
@@ -574,21 +616,22 @@ ValidationError: Symbol 'invalid_symbol!' contains invalid characters
 **Solutions:**
 
 1. **Implement data gap detection**
+
    ```typescript
-   const findDataGaps = async (symbol: string, expectedInterval: number) => {
+   const findDataGaps = async (entityId: string, expectedInterval: number) => {
      const query = `
-       SELECT 
+       SELECT
          time,
          LEAD(time) OVER (ORDER BY time) as next_time,
          EXTRACT(EPOCH FROM (LEAD(time) OVER (ORDER BY time) - time)) as gap_seconds
-       FROM price_ticks 
-       WHERE symbol = $1 
+       FROM time_series_records
+       WHERE entity_id = $1
        ORDER BY time
      `
      
-     const result = await client.sql`${query}`.execute([symbol])
+     const result = await client.sql`${query}`.execute([entityId])
      
-     const gaps = result.filter(row => 
+     const gaps = result.filter(row =>
        row.gap_seconds > expectedInterval * 60 // Convert minutes to seconds
      )
      
@@ -597,22 +640,23 @@ ValidationError: Symbol 'invalid_symbol!' contains invalid characters
    ```
 
 2. **Implement data filling strategies**
+
    ```typescript
-   const fillDataGaps = async (symbol: string, range: TimeRange) => {
-     const ticks = await client.getTicks(symbol, range)
+   const fillDataGaps = async (entityId: string, range: TimeRange) => {
+     const records = await client.getRecords(entityId, range)
      
      // Fill gaps with interpolated values
-     const filled: PriceTick[] = []
-     for (let i = 0; i < ticks.length - 1; i++) {
-       filled.push(ticks[i])
+     const filled: TimeSeriesRecord[] = []
+     for (let i = 0; i < records.length - 1; i++) {
+       filled.push(records[i])
        
-       const current = new Date(ticks[i].timestamp)
-       const next = new Date(ticks[i + 1].timestamp)
+       const current = new Date(records[i].time)
+       const next = new Date(records[i + 1].time)
        const gap = next.getTime() - current.getTime()
        
        // If gap > 5 minutes, interpolate
        if (gap > 5 * 60 * 1000) {
-         const interpolated = interpolateData(ticks[i], ticks[i + 1])
+         const interpolated = interpolateData(records[i], records[i + 1])
          filled.push(...interpolated)
        }
      }
@@ -622,21 +666,22 @@ ValidationError: Symbol 'invalid_symbol!' contains invalid characters
    ```
 
 3. **Monitor data completeness**
+
    ```typescript
    const monitorDataCompleteness = async () => {
-     const symbols = ['BTCUSD', 'ETHUSD', 'ADAUSD']
+     const entityIds = ['sensor_001', 'sensor_002', 'sensor_003']
      
-     for (const symbol of symbols) {
+     for (const entityId of entityIds) {
        const lastHour = {
          from: new Date(Date.now() - 60 * 60 * 1000),
          to: new Date()
        }
        
-       const ticks = await client.getTicks(symbol, lastHour)
-       const expectedCount = 60 // 1 tick per minute
+       const records = await client.getRecords(entityId, lastHour)
+       const expectedCount = 60 // 1 record per minute
        
-       if (ticks.length < expectedCount * 0.9) { // 90% threshold
-         console.warn(`Data completeness issue for ${symbol}: ${ticks.length}/${expectedCount} expected`)
+       if (records.length < expectedCount * 0.9) { // 90% threshold
+         console.warn(`Data completeness issue for ${entityId}: ${records.length}/${expectedCount} expected`)
        }
      }
    }
@@ -651,18 +696,21 @@ ValidationError: Symbol 'invalid_symbol!' contains invalid characters
 **Description:** Database connection issues
 
 **Common Causes:**
+
 - Database server unavailable
 - Network connectivity problems
 - Authentication failures
 - Connection pool exhaustion
 
 **Error Codes:**
+
 - `ECONNREFUSED`: Database server not responding
 - `ENOTFOUND`: DNS resolution failure
 - `ETIMEDOUT`: Connection timeout
 - `ECONNRESET`: Connection reset by peer
 
 **Solutions:**
+
 ```typescript
 import { ConnectionError } from 'timescaledb-client'
 
@@ -699,12 +747,14 @@ const retryWithBackoff = async (operation: () => Promise<void>, maxRetries = 3) 
 **Description:** Data validation failures
 
 **Common Causes:**
+
 - Invalid data types
 - Out-of-range values
 - Missing required fields
 - Invalid format
 
 **Solutions:**
+
 ```typescript
 import { ValidationError } from 'timescaledb-client'
 
@@ -739,12 +789,14 @@ const fixValidationError = (tick: PriceTick, error: ValidationError): PriceTick 
 **Description:** Database query execution failures
 
 **Common Causes:**
+
 - SQL syntax errors
 - Missing tables or columns
 - Insufficient permissions
 - Query timeouts
 
 **Solutions:**
+
 ```typescript
 import { QueryError } from 'timescaledb-client'
 
@@ -778,12 +830,14 @@ try {
 **Description:** Batch operation failures
 
 **Common Causes:**
+
 - Some records in batch invalid
 - Partial operation failures
 - Transaction conflicts
 - Resource constraints
 
 **Solutions:**
+
 ```typescript
 import { BatchError } from 'timescaledb-client'
 
@@ -934,6 +988,7 @@ const debugConnection = async () => {
 ### Issue: Memory Leaks
 
 **Symptoms:**
+
 - Steadily increasing memory usage
 - Application crashes with out-of-memory errors
 - Garbage collection taking too long
@@ -941,6 +996,7 @@ const debugConnection = async () => {
 **Solutions:**
 
 1. **Proper connection management**
+
    ```typescript
    // Always close connections
    const processData = async () => {
@@ -957,6 +1013,7 @@ const debugConnection = async () => {
    ```
 
 2. **Use connection pooling**
+
    ```typescript
    // Reuse client instances
    class DataProcessor {
@@ -979,6 +1036,7 @@ const debugConnection = async () => {
    ```
 
 3. **Monitor memory usage**
+
    ```typescript
    // Memory monitoring
    const monitorMemory = () => {
@@ -996,6 +1054,7 @@ const debugConnection = async () => {
 ### Issue: Large Result Sets
 
 **Symptoms:**
+
 - Out-of-memory errors when fetching large datasets
 - Slow query performance
 - Application becomes unresponsive
@@ -1003,6 +1062,7 @@ const debugConnection = async () => {
 **Solutions:**
 
 1. **Use streaming**
+
    ```typescript
    // Instead of loading all data at once
    const processLargeDataset = async () => {
@@ -1019,6 +1079,7 @@ const debugConnection = async () => {
    ```
 
 2. **Implement pagination**
+
    ```typescript
    const processDataWithPagination = async (symbol: string, range: TimeRange) => {
      const PAGE_SIZE = 10000
@@ -1046,13 +1107,15 @@ const debugConnection = async () => {
 ### Issue: Missing Tables
 
 **Symptoms:**
-```
+
+```text
 QueryError: relation "price_ticks" does not exist
 ```
 
 **Solutions:**
 
 1. **Ensure schema exists**
+
    ```typescript
    // Always ensure schema on startup
    await client.ensureSchema()
@@ -1065,22 +1128,27 @@ QueryError: relation "price_ticks" does not exist
    ```
 
 2. **Manual schema creation**
+
    ```sql
    -- Create tables manually
-   CREATE TABLE IF NOT EXISTS price_ticks (
+   CREATE TABLE IF NOT EXISTS time_series_records (
      time TIMESTAMPTZ NOT NULL,
-     symbol TEXT NOT NULL,
-     price NUMERIC NOT NULL,
-     volume NUMERIC,
-     PRIMARY KEY (symbol, time)
+     entity_id TEXT NOT NULL,
+     value NUMERIC NOT NULL,
+     value2 NUMERIC,
+     value3 NUMERIC,
+     value4 NUMERIC,
+     metadata JSONB,
+     PRIMARY KEY (entity_id, time)
    );
    
-   SELECT create_hypertable('price_ticks', 'time', if_not_exists => true);
+   SELECT create_hypertable('time_series_records', 'time', if_not_exists => true);
    ```
 
 ### Issue: Schema Version Mismatch
 
 **Symptoms:**
+
 - Unexpected column names
 - Missing indexes
 - Performance degradation
@@ -1088,6 +1156,7 @@ QueryError: relation "price_ticks" does not exist
 **Solutions:**
 
 1. **Check schema version**
+
    ```typescript
    const checkSchemaVersion = async () => {
      const info = await client.getSchemaInfo()
@@ -1101,6 +1170,7 @@ QueryError: relation "price_ticks" does not exist
    ```
 
 2. **Implement migrations**
+
    ```typescript
    const migrateSchema = async (fromVersion: string, toVersion: string) => {
      console.log(`Migrating schema from ${fromVersion} to ${toVersion}`)
@@ -1122,6 +1192,7 @@ QueryError: relation "price_ticks" does not exist
 ### Issue: Slow Aggregation Queries
 
 **Symptoms:**
+
 - Long-running analytics queries
 - High CPU usage during aggregations
 - Query timeouts
@@ -1129,6 +1200,7 @@ QueryError: relation "price_ticks" does not exist
 **Solutions:**
 
 1. **Use continuous aggregates**
+
    ```sql
    -- Create continuous aggregate for common queries
    CREATE MATERIALIZED VIEW hourly_stats
@@ -1145,6 +1217,7 @@ QueryError: relation "price_ticks" does not exist
    ```
 
 2. **Optimize time-based queries**
+
    ```typescript
    // Use appropriate time buckets
    const getHourlyStats = async (symbol: string) => {
@@ -1164,6 +1237,7 @@ QueryError: relation "price_ticks" does not exist
 ### Issue: Index Not Being Used
 
 **Symptoms:**
+
 - Sequential scans in query plans
 - Slow performance despite having indexes
 - High I/O usage
@@ -1171,6 +1245,7 @@ QueryError: relation "price_ticks" does not exist
 **Solutions:**
 
 1. **Analyze query plans**
+
    ```sql
    -- Check if indexes are being used
    EXPLAIN (ANALYZE, BUFFERS) 
@@ -1180,6 +1255,7 @@ QueryError: relation "price_ticks" does not exist
    ```
 
 2. **Create appropriate indexes**
+
    ```sql
    -- Multi-column index for common queries
    CREATE INDEX CONCURRENTLY idx_price_ticks_symbol_time 
@@ -1198,6 +1274,7 @@ QueryError: relation "price_ticks" does not exist
 ### Issue: Environment Configuration
 
 **Symptoms:**
+
 - Different behavior between environments
 - Configuration not loading properly
 - Missing environment variables
@@ -1205,6 +1282,7 @@ QueryError: relation "price_ticks" does not exist
 **Solutions:**
 
 1. **Validate environment configuration**
+
    ```typescript
    const validateEnvironment = () => {
      const requiredEnvVars = [
@@ -1224,6 +1302,7 @@ QueryError: relation "price_ticks" does not exist
    ```
 
 2. **Use environment-specific configurations**
+
    ```typescript
    const getConfig = () => {
      const env = process.env.NODE_ENV || 'development'
@@ -1248,6 +1327,7 @@ QueryError: relation "price_ticks" does not exist
 ### Issue: Container Deployment Problems
 
 **Symptoms:**
+
 - Connection issues in containers
 - Database not accessible
 - Health checks failing
@@ -1255,6 +1335,7 @@ QueryError: relation "price_ticks" does not exist
 **Solutions:**
 
 1. **Fix container networking**
+
    ```yaml
    # docker-compose.yml
    version: '3.8'
@@ -1279,6 +1360,7 @@ QueryError: relation "price_ticks" does not exist
    ```
 
 2. **Implement proper health checks**
+
    ```typescript
    // Health check endpoint
    app.get('/health', async (req, res) => {

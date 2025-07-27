@@ -1,55 +1,80 @@
 /**
- * Core data interfaces for TimescaleDB client
+ * Universal interfaces for TimescaleDB client supporting any time-series domain
  *
- * These interfaces define the structure of time-series data that the client handles.
- * They match the API specification from README.md and follow TimescaleDB best practices.
+ * This module provides generic interfaces that can handle IoT sensor readings,
+ * monitoring metrics, logging events, and any other time-series use case. The design follows
+ * TimescaleDB best practices with entity-based modeling and flexible value storage.
  */
 
 /**
- * Represents a single price tick data point
+ * Universal time-series record supporting any domain
+ *
+ * Maps various data types:
+ * - IoT: Sensor → {time, entity_id: "sensor_001", value: temperature, value2: humidity}
+ * - Monitoring: Server → {time, entity_id: "server_01", value: cpu_usage, value2: memory_usage}
+ * - Logging: Event → {time, entity_id: "service_api", value: error_count, metadata: details}
+ * - Custom: Any → {time, entity_id: "entity_123", value: measurement1, value2: measurement2, value3: measurement3, value4: measurement4}
  */
-export interface PriceTick {
-  /** Symbol identifier (e.g., 'BTCUSD', 'NVDA') */
-  readonly symbol: string
+export interface TimeSeriesRecord {
+  /** ISO 8601 timestamp string for the data point */
+  readonly time: string
 
-  /** Price value - must be positive */
-  readonly price: number
+  /** Unique identifier for the entity (sensor_id, server_id, service_id, etc.) */
+  readonly entity_id: string
 
-  /** Trading volume - optional, must be non-negative if provided */
-  readonly volume?: number | undefined
+  /** Primary numeric value (temperature, cpu_usage, error_count, measurement, etc.) */
+  readonly value: number
 
-  /** ISO 8601 timestamp string */
-  readonly timestamp: string
+  /** Secondary numeric value (humidity, memory_usage, response_time, etc.) - optional */
+  readonly value2?: number | undefined
+
+  /** Tertiary numeric value (pressure, disk_usage, latency, etc.) - optional */
+  readonly value3?: number | undefined
+
+  /** Quaternary numeric value (altitude, network_usage, throughput, etc.) - optional */
+  readonly value4?: number | undefined
+
+  /** Additional structured data specific to the domain */
+  readonly metadata?: Record<string, unknown> | undefined
 }
 
 /**
- * Represents OHLC (Open, High, Low, Close) candle data
+ * Entity metadata for any domain type
+ *
+ * Examples:
+ * - IoT: {entity_id: "sensor_001", entity_type: "temperature_sensor", metadata: {location: "warehouse_a"}}
+ * - Monitoring: {entity_id: "server_01", entity_type: "server", metadata: {datacenter: "us-east-1"}}
+ * - Logging: {entity_id: "service_api", entity_type: "microservice", metadata: {version: "1.2.3"}}
+ * - Custom: {entity_id: "device_123", entity_type: "measurement_device", metadata: {calibrated_at: "2024-01-01"}}
  */
-export interface Ohlc {
-  /** Symbol identifier (e.g., 'BTCUSD', 'NVDA') */
-  readonly symbol: string
+export interface EntityMetadata {
+  /** Unique identifier for the entity */
+  readonly entity_id: string
 
-  /** Opening price for the time period */
-  readonly open: number
+  /** Type/category of the entity (sensor, server, service, device, etc.) */
+  readonly entity_type: string
 
-  /** Highest price during the time period */
-  readonly high: number
+  /** Display name for the entity */
+  readonly name?: string | undefined
 
-  /** Lowest price during the time period */
-  readonly low: number
+  /** Detailed description of the entity */
+  readonly description?: string | undefined
 
-  /** Closing price for the time period */
-  readonly close: number
+  /** Domain-specific metadata */
+  readonly metadata?: Record<string, unknown> | undefined
 
-  /** Total volume during the time period - optional */
-  readonly volume?: number | undefined
+  /** Entity creation timestamp */
+  readonly created_at?: Date | undefined
 
-  /** ISO 8601 timestamp string representing the start of the time period */
-  readonly timestamp: string
+  /** Last update timestamp */
+  readonly updated_at?: Date | undefined
+
+  /** Whether the entity is currently active */
+  readonly is_active?: boolean | undefined
 }
 
 /**
- * Represents a time range for querying historical data
+ * Time range specification for querying historical data
  */
 export interface TimeRange {
   /** Start time (inclusive) */
@@ -65,71 +90,66 @@ export interface TimeRange {
 /**
  * Time interval specifications for aggregations
  */
-export type TimeInterval = '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d' | '1w'
+export type TimeInterval = '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d' | '1w' | '1M'
 
 /**
- * Supported aggregation functions
+ * Supported aggregation functions for time-series data
  */
-export type AggregationFunction = 'first' | 'last' | 'max' | 'min' | 'avg' | 'sum' | 'count'
+export type AggregationFunction = 'first' | 'last' | 'max' | 'min' | 'avg' | 'sum' | 'count' | 'stddev'
 
 /**
- * Result of a price delta calculation
+ * Aggregated time-series result
  */
-export interface PriceDelta {
-  /** Symbol that was analyzed */
-  readonly symbol: string
+export interface AggregationResult {
+  /** Time bucket for the aggregation */
+  readonly time: Date
 
-  /** Starting price */
-  readonly startPrice: number
+  /** Entity that was aggregated */
+  readonly entity_id: string
 
-  /** Ending price */
-  readonly endPrice: number
+  /** Aggregated value */
+  readonly value: number
 
-  /** Absolute price change */
-  readonly delta: number
+  /** Aggregated value2 (if applicable) */
+  readonly value2?: number | undefined
 
-  /** Percentage change */
-  readonly percentChange: number
+  /** Aggregated value3 (if applicable) */
+  readonly value3?: number | undefined
 
-  /** Time range analyzed */
-  readonly timeRange: TimeRange
+  /** Aggregated value4 (if applicable) */
+  readonly value4?: number | undefined
+
+  /** Number of data points used in aggregation */
+  readonly count: number
+
+  /** Aggregation function applied */
+  readonly function: AggregationFunction
 }
 
 /**
- * Volatility calculation result
+ * Latest record information for any entity
  */
-export interface VolatilityResult {
-  /** Symbol that was analyzed */
-  readonly symbol: string
+export interface LatestRecord {
+  /** Entity identifier */
+  readonly entity_id: string
 
-  /** Standard deviation of prices */
-  readonly standardDeviation: number
+  /** Latest value */
+  readonly value: number
 
-  /** Average price during the period */
-  readonly averagePrice: number
+  /** Latest value2 (if applicable) */
+  readonly value2?: number | undefined
 
-  /** Number of data points used */
-  readonly sampleCount: number
+  /** Latest value3 (if applicable) */
+  readonly value3?: number | undefined
 
-  /** Time period analyzed in hours */
-  readonly periodHours: number
-}
+  /** Latest value4 (if applicable) */
+  readonly value4?: number | undefined
 
-/**
- * Latest price information
- */
-export interface LatestPrice {
-  /** Symbol */
-  readonly symbol: string
+  /** Metadata from the latest record */
+  readonly metadata?: Record<string, unknown> | undefined
 
-  /** Latest price */
-  readonly price: number
-
-  /** Volume of the latest tick */
-  readonly volume?: number | undefined
-
-  /** Timestamp of the latest price */
-  readonly timestamp: Date
+  /** Timestamp of the latest record */
+  readonly time: Date
 }
 
 /**
@@ -170,23 +190,12 @@ export interface QueryOptions {
 
   /** Whether to include statistics in response */
   readonly includeStats?: boolean
-}
 
-/**
- * Volume profile analysis result
- */
-export interface VolumeProfile {
-  /** Price level for this profile entry */
-  readonly priceLevel: number
+  /** Specific entity types to filter */
+  readonly entityTypes?: readonly string[]
 
-  /** Total volume at this price level */
-  readonly volume: number
-
-  /** Number of trades at this price level */
-  readonly tradeCount: number
-
-  /** Percentage of total volume */
-  readonly volumePercent: number
+  /** Entity IDs to filter */
+  readonly entityIds?: readonly string[]
 }
 
 /**
@@ -308,46 +317,20 @@ export interface StreamingOptions {
 }
 
 /**
- * Multi-symbol latest price result
+ * Multi-entity latest records result
  */
-export interface MultiSymbolLatest {
-  /** Symbol prices */
-  readonly prices: readonly LatestPrice[]
+export interface MultiEntityLatest {
+  /** Entity records */
+  readonly records: readonly LatestRecord[]
 
   /** Timestamp when data was retrieved */
   readonly retrievedAt: Date
 
-  /** Number of symbols requested */
+  /** Number of entities requested */
   readonly requested: number
 
-  /** Number of symbols found */
+  /** Number of entities found */
   readonly found: number
-}
-
-/**
- * Top movers analysis result
- */
-export interface TopMover {
-  /** Symbol */
-  readonly symbol: string
-
-  /** Starting price */
-  readonly startPrice: number
-
-  /** Current/ending price */
-  readonly currentPrice: number
-
-  /** Absolute price change */
-  readonly priceChange: number
-
-  /** Percentage change */
-  readonly percentChange: number
-
-  /** Volume during the period */
-  readonly volume?: number
-
-  /** Time period analyzed */
-  readonly periodHours: number
 }
 
 /**
@@ -404,27 +387,113 @@ export interface QueryStats {
 }
 
 /**
- * Validation helper functions interface
+ * Statistical analysis result for any numeric values
+ */
+export interface StatisticalResult {
+  /** Entity that was analyzed */
+  readonly entity_id: string
+
+  /** Statistical measure name */
+  readonly measure: string
+
+  /** Result value */
+  readonly value: number
+
+  /** Number of data points used */
+  readonly sampleCount: number
+
+  /** Time period analyzed */
+  readonly timeRange: TimeRange
+
+  /** Additional context */
+  readonly metadata?: Record<string, unknown> | undefined
+}
+
+/**
+ * Universal validation helper functions interface
  */
 export interface ValidationHelpers {
-  /** Validate symbol format */
-  isValidSymbol(symbol: string): boolean
+  /** Validate entity ID format */
+  isValidEntityId(entityId: string): boolean
 
   /** Validate timestamp format */
   isValidTimestamp(timestamp: string): boolean
 
-  /** Validate price value */
-  isValidPrice(price: number): boolean
+  /** Validate numeric value */
+  isValidValue(value: number): boolean
 
-  /** Validate volume value */
-  isValidVolume(volume: number): boolean
+  /** Validate time-series record structure */
+  isValidTimeSeriesRecord(record: TimeSeriesRecord): boolean
 
-  /** Validate OHLC relationships */
-  isValidOhlc(ohlc: Ohlc): boolean
+  /** Validate entity metadata structure */
+  isValidEntityMetadata(metadata: EntityMetadata): boolean
 
   /** Validate time range */
   isValidTimeRange(range: TimeRange): boolean
 
   /** Validate batch size */
   isValidBatchSize(size: number): boolean
+
+  /** Validate entity type */
+  isValidEntityType(entityType: string): boolean
+}
+
+/**
+ * Filter criteria for advanced querying
+ */
+export interface FilterCriteria {
+  /** Entity ID patterns (supports wildcards) */
+  readonly entityIdPattern?: string
+
+  /** Entity types to include */
+  readonly entityTypes?: readonly string[]
+
+  /** Value range filters */
+  readonly valueRange?: {
+    readonly min?: number
+    readonly max?: number
+  }
+
+  /** Value2 range filters */
+  readonly value2Range?: {
+    readonly min?: number
+    readonly max?: number
+  }
+
+  /** Metadata filters (JSON path queries) */
+  readonly metadataFilters?: Record<string, unknown>
+
+  /** Time-based filters */
+  readonly timeFilters?: {
+    readonly minTime?: Date
+    readonly maxTime?: Date
+    readonly timeOfDay?: {
+      readonly start: string // HH:MM format
+      readonly end: string // HH:MM format
+    }
+    readonly daysOfWeek?: readonly number[] // 0-6, Sunday=0
+  }
+}
+
+/**
+ * Bulk operation configuration
+ */
+export interface BulkOperationConfig {
+  /** Batch size for processing */
+  readonly batchSize?: number
+
+  /** Whether to continue on errors */
+  readonly continueOnError?: boolean
+
+  /** Maximum number of retries per batch */
+  readonly maxRetries?: number
+
+  /** Parallel processing workers */
+  readonly parallelWorkers?: number
+
+  /** Progress callback */
+  readonly onProgress?: (processed: number, total: number) => void
+
+  /** Error callback */
+  readonly onError?: (error: Error, recordIndex: number) => void
 }

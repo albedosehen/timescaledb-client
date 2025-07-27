@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document provides comprehensive performance optimization guidelines for the TimescaleDB client, covering connection management, query optimization, memory efficiency, and TimescaleDB-specific performance features.
+This document provides comprehensive performance optimization guidelines for the TimescaleDB client, covering connection management, query optimization, memory efficiency, and TimescaleDB-specific performance features for time-series data applications.
 
 ## Connection Pool Optimization
 
@@ -113,14 +113,14 @@ Leverage TimescaleDB-optimized indexes for maximum performance:
 export class QueryOptimizer {
   
   /**
-   * Optimize tick queries using covering indexes
+   * Optimize record queries using covering indexes
    */
-  async getTicksOptimized(symbol: string, range: TimeRange): Promise<PriceTick[]> {
-    // Uses ix_price_ticks_symbol_time index for optimal performance
+  async getRecordsOptimized(entity_id: string, range: TimeRange): Promise<TimeSeriesRecord[]> {
+    // Uses ix_time_series_entity_time index for optimal performance
     return await this.sql`
-      SELECT time, symbol, price, volume
-      FROM price_ticks
-      WHERE symbol = ${symbol}
+      SELECT time, entity_id, value, value2, value3, value4, metadata
+      FROM time_series_records
+      WHERE entity_id = ${entity_id}
         AND time >= ${range.from}
         AND time < ${range.to}
       ORDER BY time DESC
@@ -129,34 +129,34 @@ export class QueryOptimizer {
   }
 
   /**
-   * Optimized cross-symbol queries using time-based partitioning
+   * Optimized multi-entity queries using time-based partitioning
    */
-  async getMultiSymbolTicks(symbols: string[], range: TimeRange): Promise<PriceTick[]> {
-    // Use ANY() for efficient multi-symbol queries
+  async getMultiEntityRecords(entity_ids: string[], range: TimeRange): Promise<TimeSeriesRecord[]> {
+    // Use ANY() for efficient multi-entity queries
     return await this.sql`
-      SELECT time, symbol, price, volume
-      FROM price_ticks
-      WHERE symbol = ANY(${symbols})
+      SELECT time, entity_id, value, value2, value3, value4, metadata
+      FROM time_series_records
+      WHERE entity_id = ANY(${entity_ids})
         AND time >= ${range.from}
         AND time < ${range.to}
-      ORDER BY symbol, time DESC
+      ORDER BY entity_id, time DESC
       LIMIT ${range.limit ?? 1000}
     `
   }
 
   /**
-   * High-volume tick queries using partial indexes
+   * High-value record queries using partial indexes
    */
-  async getHighVolumeTicks(symbol: string, minVolume: number, range: TimeRange): Promise<PriceTick[]> {
-    // Leverages ix_price_ticks_high_volume partial index
+  async getHighValueRecords(entity_id: string, minValue: number, range: TimeRange): Promise<TimeSeriesRecord[]> {
+    // Leverages ix_time_series_high_value partial index
     return await this.sql`
-      SELECT time, symbol, price, volume
-      FROM price_ticks
-      WHERE symbol = ${symbol}
-        AND volume >= ${minVolume}
+      SELECT time, entity_id, value, value2, value3, value4, metadata
+      FROM time_series_records
+      WHERE entity_id = ${entity_id}
+        AND value >= ${minValue}
         AND time >= ${range.from}
         AND time < ${range.to}
-      ORDER BY volume DESC, time DESC
+      ORDER BY value DESC, time DESC
       LIMIT ${range.limit ?? 1000}
     `
   }
@@ -172,25 +172,28 @@ export class PreparedQueries {
   
   // Pre-define commonly used queries for automatic preparation
   static readonly QUERIES = {
-    INSERT_TICK: `
-      INSERT INTO price_ticks (time, symbol, price, volume)
-      VALUES ($1, $2, $3, $4)
-      ON CONFLICT (symbol, time) DO UPDATE SET
-        price = EXCLUDED.price,
-        volume = EXCLUDED.volume
+    INSERT_RECORD: `
+      INSERT INTO time_series_records (time, entity_id, value, value2, value3, value4, metadata)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      ON CONFLICT (entity_id, time) DO UPDATE SET
+        value = EXCLUDED.value,
+        value2 = EXCLUDED.value2,
+        value3 = EXCLUDED.value3,
+        value4 = EXCLUDED.value4,
+        metadata = EXCLUDED.metadata
     `,
     
-    GET_LATEST_PRICE: `
-      SELECT price FROM price_ticks
-      WHERE symbol = $1
+    GET_LATEST_VALUE: `
+      SELECT value FROM time_series_records
+      WHERE entity_id = $1
       ORDER BY time DESC
       LIMIT 1
     `,
     
-    GET_TICKS_RANGE: `
-      SELECT time, symbol, price, volume
-      FROM price_ticks
-      WHERE symbol = $1 AND time >= $2 AND time < $3
+    GET_RECORDS_RANGE: `
+      SELECT time, entity_id, value, value2, value3, value4, metadata
+      FROM time_series_records
+      WHERE entity_id = $1 AND time >= $2 AND time < $3
       ORDER BY time DESC
       LIMIT $4
     `
@@ -198,13 +201,16 @@ export class PreparedQueries {
 
   constructor(private sql: Sql) {}
 
-  async insertTickPrepared(tick: PriceTick): Promise<void> {
+  async insertRecordPrepared(record: TimeSeriesRecord): Promise<void> {
     // postgres.js automatically prepares frequently used queries
-    await this.sql.unsafe(PreparedQueries.QUERIES.INSERT_TICK, [
-      tick.timestamp,
-      tick.symbol,
-      tick.price,
-      tick.volume
+    await this.sql.unsafe(PreparedQueries.QUERIES.INSERT_RECORD, [
+      record.time,
+      record.entity_id,
+      record.value,
+      record.value2,
+      record.value3,
+      record.value4,
+      record.metadata
     ])
   }
 }
@@ -241,18 +247,18 @@ export class BatchOptimizer {
   /**
    * Adaptive batching with performance monitoring
    */
-  async insertTicksAdaptive(ticks: PriceTick[]): Promise<BatchResult> {
+  async insertRecordsAdaptive(records: TimeSeriesRecord[]): Promise<BatchResult> {
     const startTime = Date.now()
     let optimalBatchSize = this.calculateOptimalBatchSize(
-      this.estimateTickSize(ticks[0]),
+      this.estimateRecordSize(records[0]),
       this.getAvailableMemory(),
       await this.measureNetworkLatency()
     )
 
     const results: BatchResult[] = []
     
-    for (let i = 0; i < ticks.length; i += optimalBatchSize) {
-      const batch = ticks.slice(i, i + optimalBatchSize)
+    for (let i = 0; i < records.length; i += optimalBatchSize) {
+      const batch = records.slice(i, i + optimalBatchSize)
       const batchStart = Date.now()
       
       const result = await this.insertBatch(batch)
@@ -302,14 +308,14 @@ export class MemoryEfficientBulkOperator {
   /**
    * Stream-based bulk insert to handle very large datasets
    */
-  async insertTicksStream(
-    tickSource: AsyncIterable<PriceTick>,
+  async insertRecordsStream(
+    recordSource: AsyncIterable<TimeSeriesRecord>,
     batchSize = 5000
   ): Promise<void> {
-    const batch: PriceTick[] = []
+    const batch: TimeSeriesRecord[] = []
     
-    for await (const tick of tickSource) {
-      batch.push(tick)
+    for await (const record of recordSource) {
+      batch.push(record)
       
       if (batch.length >= batchSize) {
         await this.insertBatch([...batch])
@@ -412,12 +418,12 @@ export class ChunkOptimizer {
 
   private async analyzeIngestionPatterns(): Promise<IngestionStats> {
     const stats = await this.sql`
-      SELECT 
+      SELECT
         date_trunc('hour', time) as hour,
-        count(*) as tick_count,
-        count(DISTINCT symbol) as symbol_count,
-        avg(pg_column_size(row(price_ticks.*))) as avg_row_size
-      FROM price_ticks
+        count(*) as record_count,
+        count(DISTINCT entity_id) as entity_count,
+        avg(pg_column_size(row(time_series_records.*))) as avg_row_size
+      FROM time_series_records
       WHERE time > NOW() - INTERVAL '7 days'
       GROUP BY hour
       ORDER BY hour
@@ -430,16 +436,16 @@ export class ChunkOptimizer {
     if (recommendations.newChunkInterval !== recommendations.currentChunkInterval) {
       // Note: This requires TimescaleDB admin privileges
       await this.sql`
-        SELECT set_chunk_time_interval('price_ticks', INTERVAL '${recommendations.newChunkInterval}')
+        SELECT set_chunk_time_interval('time_series_records', INTERVAL '${recommendations.newChunkInterval}')
       `
     }
     
     // Optimize chunk compression
     if (recommendations.enableCompression) {
       await this.sql`
-        ALTER TABLE price_ticks SET (
+        ALTER TABLE time_series_records SET (
           timescaledb.compress,
-          timescaledb.compress_segmentby = 'symbol',
+          timescaledb.compress_segmentby = 'entity_id',
           timescaledb.compress_orderby = 'time DESC'
         )
       `
@@ -459,27 +465,26 @@ export class ContinuousAggregateOptimizer {
    * Create performance-optimized continuous aggregates
    */
   async createOptimizedAggregates(): Promise<void> {
-    // High-frequency 1-minute OHLC for real-time applications
+    // High-frequency 1-minute aggregates for real-time applications
     await this.sql`
-      CREATE MATERIALIZED VIEW ohlc_1min
+      CREATE MATERIALIZED VIEW metrics_1min
       WITH (timescaledb.continuous) AS
-      SELECT 
+      SELECT
         time_bucket('1 minute', time) AS bucket,
-        symbol,
-        first(price, time) AS open,
-        max(price) AS high,
-        min(price) AS low,
-        last(price, time) AS close,
-        sum(volume) AS volume,
-        count(*) AS tick_count
-      FROM price_ticks
-      GROUP BY bucket, symbol
+        entity_id,
+        min(value) AS min_value,
+        max(value) AS max_value,
+        avg(value) AS avg_value,
+        count(*) AS record_count,
+        stddev(value) AS stddev_value
+      FROM time_series_records
+      GROUP BY bucket, entity_id
       WITH NO DATA
     `
 
     // Refresh policy for real-time updates
     await this.sql`
-      SELECT add_continuous_aggregate_policy('ohlc_1min',
+      SELECT add_continuous_aggregate_policy('metrics_1min',
         start_offset => INTERVAL '10 minutes',
         end_offset => INTERVAL '1 minute',
         schedule_interval => INTERVAL '30 seconds'
@@ -490,19 +495,18 @@ export class ContinuousAggregateOptimizer {
     await this.sql`
       CREATE MATERIALIZED VIEW daily_stats
       WITH (timescaledb.continuous) AS
-      SELECT 
+      SELECT
         time_bucket('1 day', time) AS day,
-        symbol,
-        first(price, time) AS open,
-        max(price) AS high,
-        min(price) AS low,
-        last(price, time) AS close,
-        sum(volume) AS volume,
-        count(*) AS tick_count,
-        stddev(price) AS volatility,
-        percentile_cont(0.5) WITHIN GROUP (ORDER BY price) AS median_price
-      FROM price_ticks
-      GROUP BY day, symbol
+        entity_id,
+        min(value) AS min_value,
+        max(value) AS max_value,
+        avg(value) AS avg_value,
+        count(*) AS record_count,
+        stddev(value) AS variance,
+        percentile_cont(0.5) WITHIN GROUP (ORDER BY value) AS median_value,
+        percentile_cont(0.95) WITHIN GROUP (ORDER BY value) AS p95_value
+      FROM time_series_records
+      GROUP BY day, entity_id
       WITH NO DATA
     `
   }
@@ -587,21 +591,21 @@ export class MemoryOptimizer {
    * Stream large result sets to avoid memory exhaustion
    */
   async queryLargeDataset(
-    symbol: string,
+    entity_id: string,
     range: TimeRange,
-    processor: (chunk: PriceTick[]) => Promise<void>
+    processor: (chunk: TimeSeriesRecord[]) => Promise<void>
   ): Promise<void> {
     const cursor = this.sql`
-      SELECT time, symbol, price, volume
-      FROM price_ticks
-      WHERE symbol = ${symbol}
+      SELECT time, entity_id, value, value2, value3, value4, metadata
+      FROM time_series_records
+      WHERE entity_id = ${entity_id}
         AND time >= ${range.from}
         AND time < ${range.to}
       ORDER BY time DESC
     `.cursor(1000) // Process 1000 rows at a time
 
     for await (const rows of cursor) {
-      await processor(rows.map(this.mapRowToTick))
+      await processor(rows.map(this.mapRowToRecord))
       
       // Allow garbage collection between chunks
       await new Promise(resolve => setImmediate(resolve))
@@ -654,22 +658,28 @@ export class ResultOptimizer {
   }
 
   /**
-   * Optimized tick mapping with reused objects
+   * Optimized record mapping with reused objects
    */
-  private tickMapper = {
+  private recordMapper = {
     reusableResult: {
-      symbol: '',
-      price: 0,
-      volume: undefined as number | undefined,
-      timestamp: ''
+      entity_id: '',
+      time: '',
+      value: 0,
+      value2: undefined as number | undefined,
+      value3: undefined as number | undefined,
+      value4: undefined as number | undefined,
+      metadata: undefined as Record<string, any> | undefined
     },
 
-    mapRow(row: any): PriceTick {
+    mapRow(row: any): TimeSeriesRecord {
       // Reuse object to reduce allocations
-      this.reusableResult.symbol = row.symbol
-      this.reusableResult.price = row.price
-      this.reusableResult.volume = row.volume
-      this.reusableResult.timestamp = row.time.toISOString()
+      this.reusableResult.entity_id = row.entity_id
+      this.reusableResult.time = row.time.toISOString()
+      this.reusableResult.value = row.value
+      this.reusableResult.value2 = row.value2
+      this.reusableResult.value3 = row.value3
+      this.reusableResult.value4 = row.value4
+      this.reusableResult.metadata = row.metadata
       
       // Return a copy for safety
       return { ...this.reusableResult }
@@ -791,7 +801,7 @@ interface PerformanceReport {
 ### Database Configuration
 
 - [ ] Enable TimescaleDB compression for chunks older than 7 days
-- [ ] Configure appropriate retention policies (2 years for ticks, 5 years for OHLC)
+- [ ] Configure appropriate retention policies (2 years for raw data, 5 years for aggregates)
 - [ ] Set up continuous aggregates for common query patterns
 - [ ] Optimize chunk intervals based on ingestion patterns
 - [ ] Configure parallel workers for query execution
@@ -807,12 +817,12 @@ interface PerformanceReport {
 ### Query Optimization
 
 - [ ] Use appropriate indexes for query patterns
-- [ ] Leverage continuous aggregates for OHLC queries
+- [ ] Leverage continuous aggregates for time-series queries
 - [ ] Implement streaming for large result sets
 - [ ] Use batch operations for bulk inserts
 - [ ] Monitor query execution plans
 
-### Memory Management
+### Memory Management Checklist
 
 - [ ] Configure appropriate batch sizes (1000-5000 records)
 - [ ] Implement backpressure for high-throughput scenarios

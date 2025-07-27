@@ -1,8 +1,8 @@
 /**
  * Aggregation operations for TimescaleDB client
  *
- * Provides time-windowed aggregations, OHLC calculations, and TimescaleDB-specific
- * aggregation functions for time-series data analysis.
+ * Provides time-windowed aggregations and TimescaleDB-specific aggregation functions
+ * for generic time-series data analysis supporting any domain.
  */
 
 import type { SqlInstance } from '../types/internal.ts'
@@ -27,61 +27,111 @@ export interface AggregationOptions extends QueryOptions {
 export interface TimeBucketResult {
   /** The time bucket timestamp */
   readonly bucket: Date
+  /** Entity identifier */
+  readonly entity_id: string
   /** Number of data points in this time bucket */
   readonly count: number
-  /** Average price in this time bucket */
+  /** Average value in this time bucket */
   readonly avg?: number | undefined
-  /** Minimum price in this time bucket */
+  /** Minimum value in this time bucket */
   readonly min?: number | undefined
-  /** Maximum price in this time bucket */
+  /** Maximum value in this time bucket */
   readonly max?: number | undefined
-  /** Sum of all prices in this time bucket */
+  /** Sum of all values in this time bucket */
   readonly sum?: number | undefined
-  /** First price value in this time bucket (earliest by time) */
+  /** First value in this time bucket (earliest by time) */
   readonly first?: number | undefined
-  /** Last price value in this time bucket (latest by time) */
+  /** Last value in this time bucket (latest by time) */
   readonly last?: number | undefined
-  /** Standard deviation of prices in this time bucket */
+  /** Standard deviation of values in this time bucket */
   readonly stddev?: number | undefined
 }
 
 /**
- * Volume-weighted average price result
+ * Multi-value aggregation result
  */
-export interface VwapResult {
+export interface MultiValueAggregationResult {
   /** The time bucket timestamp */
   readonly bucket: Date
-  /** The trading symbol */
-  readonly symbol: string
-  /** Volume-weighted average price for this bucket */
-  readonly vwap: number
-  /** Total trading volume for this bucket */
-  readonly totalVolume: number
-  /** Price range within this bucket */
-  readonly priceRange: {
-    /** Minimum price in this bucket */
+  /** Entity identifier */
+  readonly entity_id: string
+  /** Number of data points in this time bucket */
+  readonly count: number
+  /** Statistics for primary value */
+  readonly value_stats: {
+    readonly avg?: number | undefined
+    readonly min?: number | undefined
+    readonly max?: number | undefined
+    readonly sum?: number | undefined
+    readonly first?: number | undefined
+    readonly last?: number | undefined
+  }
+  /** Statistics for secondary value */
+  readonly value2_stats?: {
+    readonly avg?: number | undefined
+    readonly min?: number | undefined
+    readonly max?: number | undefined
+    readonly sum?: number | undefined
+    readonly first?: number | undefined
+    readonly last?: number | undefined
+  }
+  /** Statistics for tertiary value */
+  readonly value3_stats?: {
+    readonly avg?: number | undefined
+    readonly min?: number | undefined
+    readonly max?: number | undefined
+    readonly sum?: number | undefined
+    readonly first?: number | undefined
+    readonly last?: number | undefined
+  }
+  /** Statistics for quaternary value */
+  readonly value4_stats?: {
+    readonly avg?: number | undefined
+    readonly min?: number | undefined
+    readonly max?: number | undefined
+    readonly sum?: number | undefined
+    readonly first?: number | undefined
+    readonly last?: number | undefined
+  }
+}
+
+/**
+ * Weighted average result
+ */
+export interface WeightedAverageResult {
+  /** The time bucket timestamp */
+  readonly bucket: Date
+  /** Entity identifier */
+  readonly entity_id: string
+  /** Weighted average value for this bucket */
+  readonly weighted_avg: number
+  /** Total weight for this bucket */
+  readonly total_weight: number
+  /** Value range within this bucket */
+  readonly value_range: {
+    /** Minimum value in this bucket */
     readonly min: number
-    /** Maximum price in this bucket */
+    /** Maximum value in this bucket */
     readonly max: number
   }
 }
 
 /**
- * Price delta calculation result
+ * Delta calculation result
  */
-export interface PriceDeltaResult {
-  /** The trading symbol */
-  readonly symbol: string
-  /** Starting price at the beginning of the time range */
-  readonly startPrice: number
-  /** Ending price at the end of the time range */
-  readonly endPrice: number
-  /** Absolute change in price (endPrice - startPrice) */
+export interface DeltaResult {
+  /** Entity identifier */
+  readonly entity_id: string
+  /** Starting value at the beginning of the time range */
+  readonly start_value: number
+  /** Ending value at the end of the time range */
+  readonly end_value: number
+  /** Absolute change in value (end_value - start_value) */
   readonly delta: number
-  /** Percentage change in price over the time range */
-  readonly percentChange: number
-  /** Time range for the price delta calculation */
-  readonly timeRange: TimeRange
+  /** Percentage change in value over the time range */
+  readonly percent_change: number
+  /** Time range for the delta calculation */
+  readonly time_range: TimeRange
 }
 
 /**
@@ -96,21 +146,23 @@ const DEFAULT_AGGREGATION_OPTIONS: Required<AggregationOptions> = {
   fillGaps: false,
   fillValue: null,
   includeMetadata: false,
+  entityTypes: [],
+  entityIds: [],
 }
 
 /**
- * Calculate time-bucketed aggregations for price data
+ * Calculate time-bucketed aggregations for an entity
  */
 export async function getTimeBucketAggregation(
   sql: SqlInstance,
-  symbol: string,
+  entityId: string,
   bucketInterval: string,
   range: TimeRange,
   options: AggregationOptions = {},
 ): Promise<TimeBucketResult[]> {
   const opts = { ...DEFAULT_AGGREGATION_OPTIONS, ...options }
 
-  validateSymbol(symbol)
+  validateEntityId(entityId)
   validateTimeRange(range)
   validateBucketInterval(bucketInterval)
 
@@ -118,24 +170,26 @@ export async function getTimeBucketAggregation(
     const results = await sql`
       SELECT
         time_bucket(${bucketInterval}, time) as bucket,
+        entity_id,
         count(*) as count,
-        avg(price) as avg,
-        min(price) as min,
-        max(price) as max,
-        sum(price) as sum,
-        first(price, time) as first,
-        last(price, time) as last,
-        stddev(price) as stddev
-      FROM price_ticks
-      WHERE symbol = ${symbol}
+        avg(value) as avg,
+        min(value) as min,
+        max(value) as max,
+        sum(value) as sum,
+        first(value, time) as first,
+        last(value, time) as last,
+        stddev(value) as stddev
+      FROM time_series_data
+      WHERE entity_id = ${entityId}
         AND time >= ${range.from.toISOString()}
         AND time < ${range.to.toISOString()}
-      GROUP BY bucket
+      GROUP BY bucket, entity_id
       ORDER BY bucket ${opts.orderBy.direction.toUpperCase() === 'DESC' ? sql`DESC` : sql`ASC`}
       LIMIT ${opts.limit}
       OFFSET ${opts.offset}
     ` as Array<{
       bucket: string
+      entity_id: string
       count: number
       avg: number | null
       min: number | null
@@ -148,6 +202,7 @@ export async function getTimeBucketAggregation(
 
     return results.map((row) => ({
       bucket: new Date(row.bucket),
+      entity_id: row.entity_id,
       count: row.count,
       avg: row.avg ?? undefined,
       min: row.min ?? undefined,
@@ -161,25 +216,25 @@ export async function getTimeBucketAggregation(
     throw new QueryError(
       'Failed to calculate time bucket aggregation',
       error instanceof Error ? error : new Error(String(error)),
-      'SELECT time_bucket FROM price_ticks',
-      [symbol, bucketInterval, range.from, range.to],
+      'SELECT time_bucket FROM time_series_data',
+      [entityId, bucketInterval, range.from, range.to],
     )
   }
 }
 
 /**
- * Calculate volume-weighted average price (VWAP) for time buckets
+ * Calculate multi-value aggregations for an entity
  */
-export async function getVwap(
+export async function getMultiValueAggregation(
   sql: SqlInstance,
-  symbol: string,
+  entityId: string,
   bucketInterval: string,
   range: TimeRange,
   options: AggregationOptions = {},
-): Promise<VwapResult[]> {
+): Promise<MultiValueAggregationResult[]> {
   const opts = { ...DEFAULT_AGGREGATION_OPTIONS, ...options }
 
-  validateSymbol(symbol)
+  validateEntityId(entityId)
   validateTimeRange(range)
   validateBucketInterval(bucketInterval)
 
@@ -187,60 +242,175 @@ export async function getVwap(
     const results = await sql`
       SELECT
         time_bucket(${bucketInterval}, time) as bucket,
-        symbol,
-        sum(price * COALESCE(volume, 1)) / sum(COALESCE(volume, 1)) as vwap,
-        sum(COALESCE(volume, 1)) as total_volume,
-        min(price) as min_price,
-        max(price) as max_price
-      FROM price_ticks
-      WHERE symbol = ${symbol}
+        entity_id,
+        count(*) as count,
+        avg(value) as value_avg, min(value) as value_min, max(value) as value_max, sum(value) as value_sum,
+        first(value, time) as value_first, last(value, time) as value_last,
+        avg(value2) as value2_avg, min(value2) as value2_min, max(value2) as value2_max, sum(value2) as value2_sum,
+        first(value2, time) as value2_first, last(value2, time) as value2_last,
+        avg(value3) as value3_avg, min(value3) as value3_min, max(value3) as value3_max, sum(value3) as value3_sum,
+        first(value3, time) as value3_first, last(value3, time) as value3_last,
+        avg(value4) as value4_avg, min(value4) as value4_min, max(value4) as value4_max, sum(value4) as value4_sum,
+        first(value4, time) as value4_first, last(value4, time) as value4_last
+      FROM time_series_data
+      WHERE entity_id = ${entityId}
         AND time >= ${range.from.toISOString()}
         AND time < ${range.to.toISOString()}
-        AND volume IS NOT NULL
-      GROUP BY bucket, symbol
-      HAVING sum(COALESCE(volume, 1)) > 0
+      GROUP BY bucket, entity_id
       ORDER BY bucket ${opts.orderBy.direction.toUpperCase() === 'DESC' ? sql`DESC` : sql`ASC`}
       LIMIT ${opts.limit}
       OFFSET ${opts.offset}
     ` as Array<{
       bucket: string
-      symbol: string
-      vwap: number
-      total_volume: number
-      min_price: number
-      max_price: number
+      entity_id: string
+      count: number
+      value_avg: number | null
+      value_min: number | null
+      value_max: number | null
+      value_sum: number | null
+      value_first: number | null
+      value_last: number | null
+      value2_avg: number | null
+      value2_min: number | null
+      value2_max: number | null
+      value2_sum: number | null
+      value2_first: number | null
+      value2_last: number | null
+      value3_avg: number | null
+      value3_min: number | null
+      value3_max: number | null
+      value3_sum: number | null
+      value3_first: number | null
+      value3_last: number | null
+      value4_avg: number | null
+      value4_min: number | null
+      value4_max: number | null
+      value4_sum: number | null
+      value4_first: number | null
+      value4_last: number | null
     }>
 
     return results.map((row) => ({
       bucket: new Date(row.bucket),
-      symbol: row.symbol,
-      vwap: row.vwap,
-      totalVolume: row.total_volume,
-      priceRange: {
-        min: row.min_price,
-        max: row.max_price,
+      entity_id: row.entity_id,
+      count: row.count,
+      value_stats: {
+        avg: row.value_avg ?? undefined,
+        min: row.value_min ?? undefined,
+        max: row.value_max ?? undefined,
+        sum: row.value_sum ?? undefined,
+        first: row.value_first ?? undefined,
+        last: row.value_last ?? undefined,
+      },
+      value2_stats: {
+        avg: row.value2_avg ?? undefined,
+        min: row.value2_min ?? undefined,
+        max: row.value2_max ?? undefined,
+        sum: row.value2_sum ?? undefined,
+        first: row.value2_first ?? undefined,
+        last: row.value2_last ?? undefined,
+      },
+      value3_stats: {
+        avg: row.value3_avg ?? undefined,
+        min: row.value3_min ?? undefined,
+        max: row.value3_max ?? undefined,
+        sum: row.value3_sum ?? undefined,
+        first: row.value3_first ?? undefined,
+        last: row.value3_last ?? undefined,
+      },
+      value4_stats: {
+        avg: row.value4_avg ?? undefined,
+        min: row.value4_min ?? undefined,
+        max: row.value4_max ?? undefined,
+        sum: row.value4_sum ?? undefined,
+        first: row.value4_first ?? undefined,
+        last: row.value4_last ?? undefined,
       },
     }))
   } catch (error) {
     throw new QueryError(
-      'Failed to calculate VWAP',
+      'Failed to calculate multi-value aggregation',
       error instanceof Error ? error : new Error(String(error)),
-      'SELECT time_bucket VWAP FROM price_ticks',
-      [symbol, bucketInterval, range.from, range.to],
+      'SELECT multi-value aggregation FROM time_series_data',
+      [entityId, bucketInterval, range.from, range.to],
     )
   }
 }
 
 /**
- * Calculate price delta between two time points
+ * Calculate weighted average using value2 as weight
  */
-export async function getPriceDelta(
+export async function getWeightedAverage(
   sql: SqlInstance,
-  symbol: string,
+  entityId: string,
+  bucketInterval: string,
+  range: TimeRange,
+  options: AggregationOptions = {},
+): Promise<WeightedAverageResult[]> {
+  const opts = { ...DEFAULT_AGGREGATION_OPTIONS, ...options }
+
+  validateEntityId(entityId)
+  validateTimeRange(range)
+  validateBucketInterval(bucketInterval)
+
+  try {
+    const results = await sql`
+      SELECT
+        time_bucket(${bucketInterval}, time) as bucket,
+        entity_id,
+        sum(value * COALESCE(value2, 1)) / sum(COALESCE(value2, 1)) as weighted_avg,
+        sum(COALESCE(value2, 1)) as total_weight,
+        min(value) as min_value,
+        max(value) as max_value
+      FROM time_series_data
+      WHERE entity_id = ${entityId}
+        AND time >= ${range.from.toISOString()}
+        AND time < ${range.to.toISOString()}
+        AND value2 IS NOT NULL
+      GROUP BY bucket, entity_id
+      HAVING sum(COALESCE(value2, 1)) > 0
+      ORDER BY bucket ${opts.orderBy.direction.toUpperCase() === 'DESC' ? sql`DESC` : sql`ASC`}
+      LIMIT ${opts.limit}
+      OFFSET ${opts.offset}
+    ` as Array<{
+      bucket: string
+      entity_id: string
+      weighted_avg: number
+      total_weight: number
+      min_value: number
+      max_value: number
+    }>
+
+    return results.map((row) => ({
+      bucket: new Date(row.bucket),
+      entity_id: row.entity_id,
+      weighted_avg: row.weighted_avg,
+      total_weight: row.total_weight,
+      value_range: {
+        min: row.min_value,
+        max: row.max_value,
+      },
+    }))
+  } catch (error) {
+    throw new QueryError(
+      'Failed to calculate weighted average',
+      error instanceof Error ? error : new Error(String(error)),
+      'SELECT weighted average FROM time_series_data',
+      [entityId, bucketInterval, range.from, range.to],
+    )
+  }
+}
+
+/**
+ * Calculate value delta between two time points
+ */
+export async function getValueDelta(
+  sql: SqlInstance,
+  entityId: string,
   from: Date,
   to: Date,
-): Promise<PriceDeltaResult> {
-  validateSymbol(symbol)
+): Promise<DeltaResult> {
+  validateEntityId(entityId)
 
   if (from >= to) {
     throw new ValidationError('From date must be before to date', 'from', from)
@@ -248,80 +418,80 @@ export async function getPriceDelta(
 
   try {
     const results = await sql`
-      WITH price_points AS (
+      WITH value_points AS (
         SELECT
           time,
-          price,
+          value,
           ROW_NUMBER() OVER (ORDER BY time ASC) as rn_asc,
           ROW_NUMBER() OVER (ORDER BY time DESC) as rn_desc
-        FROM price_ticks
-        WHERE symbol = ${symbol}
+        FROM time_series_data
+        WHERE entity_id = ${entityId}
           AND time >= ${from.toISOString()}
           AND time <= ${to.toISOString()}
       ),
-      first_price AS (
-        SELECT price as start_price
-        FROM price_points
+      first_value AS (
+        SELECT value as start_value
+        FROM value_points
         WHERE rn_asc = 1
       ),
-      last_price AS (
-        SELECT price as end_price
-        FROM price_points
+      last_value AS (
+        SELECT value as end_value
+        FROM value_points
         WHERE rn_desc = 1
       )
       SELECT
-        start_price,
-        end_price,
-        (end_price - start_price) as delta,
+        start_value,
+        end_value,
+        (end_value - start_value) as delta,
         CASE 
-          WHEN start_price = 0 THEN NULL
-          ELSE ((end_price - start_price) / start_price) * 100
+          WHEN start_value = 0 THEN NULL
+          ELSE ((end_value - start_value) / start_value) * 100
         END as percent_change
-      FROM first_price, last_price
+      FROM first_value, last_value
     ` as Array<{
-      start_price: number
-      end_price: number
+      start_value: number
+      end_value: number
       delta: number
       percent_change: number | null
     }>
 
     if (results.length === 0) {
-      throw new QueryError('No price data found for the specified time range')
+      throw new QueryError('No data found for the specified time range')
     }
 
     const result = results[0]
 
     if (!result) {
-      throw new QueryError('No price data found for the specified time range')
+      throw new QueryError('No data found for the specified time range')
     }
 
     return {
-      symbol,
-      startPrice: result.start_price,
-      endPrice: result.end_price,
+      entity_id: entityId,
+      start_value: result.start_value,
+      end_value: result.end_value,
       delta: result.delta,
-      percentChange: result.percent_change ?? 0,
-      timeRange: { from, to },
+      percent_change: result.percent_change ?? 0,
+      time_range: { from, to },
     }
   } catch (error) {
     throw new QueryError(
-      'Failed to calculate price delta',
+      'Failed to calculate value delta',
       error instanceof Error ? error : new Error(String(error)),
-      'SELECT price delta FROM price_ticks',
-      [symbol, from, to],
+      'SELECT value delta FROM time_series_data',
+      [entityId, from, to],
     )
   }
 }
 
 /**
- * Calculate volatility (standard deviation) over a time period
+ * Calculate variability (standard deviation) over a time period
  */
-export async function getVolatility(
+export async function getVariability(
   sql: SqlInstance,
-  symbol: string,
+  entityId: string,
   hours: number,
 ): Promise<number> {
-  validateSymbol(symbol)
+  validateEntityId(entityId)
 
   if (hours <= 0) {
     throw new ValidationError('Hours must be positive', 'hours', hours)
@@ -330,13 +500,13 @@ export async function getVolatility(
   try {
     const results = await sql`
       SELECT
-        stddev(price) as volatility,
+        stddev(value) as variability,
         count(*) as sample_count
-      FROM price_ticks
-      WHERE symbol = ${symbol}
+      FROM time_series_data
+      WHERE entity_id = ${entityId}
         AND time >= NOW() - INTERVAL '${hours} hours'
     ` as Array<{
-      volatility: number | null
+      variability: number | null
       sample_count: number
     }>
 
@@ -346,13 +516,13 @@ export async function getVolatility(
       return 0
     }
 
-    return result.volatility ?? 0
+    return result.variability ?? 0
   } catch (error) {
     throw new QueryError(
-      'Failed to calculate volatility',
+      'Failed to calculate variability',
       error instanceof Error ? error : new Error(String(error)),
-      'SELECT stddev FROM price_ticks',
-      [symbol, hours],
+      'SELECT stddev FROM time_series_data',
+      [entityId, hours],
     )
   }
 }
@@ -398,7 +568,7 @@ export async function getContinuousAggregate(
  */
 export async function getGapFilledAggregation(
   sql: SqlInstance,
-  symbol: string,
+  entityId: string,
   bucketInterval: string,
   range: TimeRange,
   fillValue: number | null = null,
@@ -406,7 +576,7 @@ export async function getGapFilledAggregation(
 ): Promise<TimeBucketResult[]> {
   const opts = { ...DEFAULT_AGGREGATION_OPTIONS, ...options }
 
-  validateSymbol(symbol)
+  validateEntityId(entityId)
   validateTimeRange(range)
   validateBucketInterval(bucketInterval)
 
@@ -414,22 +584,24 @@ export async function getGapFilledAggregation(
     const results = await sql`
       SELECT
         time_bucket_gapfill(${bucketInterval}, time) as bucket,
-        locf(avg(price), ${fillValue}) as avg,
-        coalesce(count(price), 0) as count,
-        locf(min(price), ${fillValue}) as min,
-        locf(max(price), ${fillValue}) as max,
-        locf(first(price, time), ${fillValue}) as first,
-        locf(last(price, time), ${fillValue}) as last
-      FROM price_ticks
-      WHERE symbol = ${symbol}
+        entity_id,
+        locf(avg(value), ${fillValue}) as avg,
+        coalesce(count(value), 0) as count,
+        locf(min(value), ${fillValue}) as min,
+        locf(max(value), ${fillValue}) as max,
+        locf(first(value, time), ${fillValue}) as first,
+        locf(last(value, time), ${fillValue}) as last
+      FROM time_series_data
+      WHERE entity_id = ${entityId}
         AND time >= ${range.from.toISOString()}
         AND time < ${range.to.toISOString()}
-      GROUP BY bucket
+      GROUP BY bucket, entity_id
       ORDER BY bucket ${opts.orderBy.direction.toUpperCase() === 'DESC' ? sql`DESC` : sql`ASC`}
       LIMIT ${opts.limit}
       OFFSET ${opts.offset}
     ` as Array<{
       bucket: string
+      entity_id: string
       avg: number | null
       count: number
       min: number | null
@@ -440,6 +612,7 @@ export async function getGapFilledAggregation(
 
     return results.map((row) => ({
       bucket: new Date(row.bucket),
+      entity_id: row.entity_id,
       count: row.count,
       avg: row.avg ?? undefined,
       min: row.min ?? undefined,
@@ -451,8 +624,8 @@ export async function getGapFilledAggregation(
     throw new QueryError(
       'Failed to calculate gap-filled aggregation',
       error instanceof Error ? error : new Error(String(error)),
-      'SELECT time_bucket_gapfill FROM price_ticks',
-      [symbol, bucketInterval, range.from, range.to],
+      'SELECT time_bucket_gapfill FROM time_series_data',
+      [entityId, bucketInterval, range.from, range.to],
     )
   }
 }
@@ -462,21 +635,21 @@ export async function getGapFilledAggregation(
  */
 export async function getMovingAverages(
   sql: SqlInstance,
-  symbol: string,
+  entityId: string,
   windowSize: number,
   range: TimeRange,
   options: AggregationOptions = {},
 ): Promise<
   Array<{
     time: Date
-    price: number
+    value: number
     sma: number
     ema: number
   }>
 > {
   const opts = { ...DEFAULT_AGGREGATION_OPTIONS, ...options }
 
-  validateSymbol(symbol)
+  validateEntityId(entityId)
   validateTimeRange(range)
 
   if (windowSize <= 0) {
@@ -487,16 +660,16 @@ export async function getMovingAverages(
     const results = await sql`
       SELECT
         time,
-        price,
-        avg(price) OVER (
+        value,
+        avg(value) OVER (
           ORDER BY time 
           ROWS BETWEEN ${windowSize - 1} PRECEDING AND CURRENT ROW
         ) as sma,
         -- Exponential moving average approximation
-        price * (2.0 / (${windowSize} + 1)) + 
-        lag(price) OVER (ORDER BY time) * (1 - 2.0 / (${windowSize} + 1)) as ema
-      FROM price_ticks
-      WHERE symbol = ${symbol}
+        value * (2.0 / (${windowSize} + 1)) +
+        lag(value) OVER (ORDER BY time) * (1 - 2.0 / (${windowSize} + 1)) as ema
+      FROM time_series_data
+      WHERE entity_id = ${entityId}
         AND time >= ${range.from.toISOString()}
         AND time < ${range.to.toISOString()}
       ORDER BY time
@@ -504,41 +677,119 @@ export async function getMovingAverages(
       OFFSET ${opts.offset}
     ` as Array<{
       time: string
-      price: number
+      value: number
       sma: number
       ema: number | null
     }>
 
     return results.map((row) => ({
       time: new Date(row.time),
-      price: row.price,
+      value: row.value,
       sma: row.sma,
-      ema: row.ema ?? row.price, // Fallback to price for first value
+      ema: row.ema ?? row.value, // Fallback to value for first value
     }))
   } catch (error) {
     throw new QueryError(
       'Failed to calculate moving averages',
       error instanceof Error ? error : new Error(String(error)),
-      'SELECT moving averages FROM price_ticks',
-      [symbol, windowSize, range.from, range.to],
+      'SELECT moving averages FROM time_series_data',
+      [entityId, windowSize, range.from, range.to],
     )
   }
 }
 
 /**
- * Validate symbol format
+ * Get aggregated statistics for multiple entities
  */
-function validateSymbol(symbol: string): void {
-  if (!symbol || typeof symbol !== 'string' || symbol.trim().length === 0) {
-    throw new ValidationError('Symbol is required and must be a non-empty string', 'symbol', symbol)
+export async function getMultiEntityAggregation(
+  sql: SqlInstance,
+  entityIds: string[],
+  bucketInterval: string,
+  range: TimeRange,
+  options: AggregationOptions = {},
+): Promise<TimeBucketResult[]> {
+  const opts = { ...DEFAULT_AGGREGATION_OPTIONS, ...options }
+
+  if (entityIds.length === 0) {
+    return []
   }
 
-  if (symbol.length > 20) {
-    throw new ValidationError('Symbol must be 20 characters or less', 'symbol', symbol)
+  for (const entityId of entityIds) {
+    validateEntityId(entityId)
+  }
+  validateTimeRange(range)
+  validateBucketInterval(bucketInterval)
+
+  try {
+    const results = await sql`
+      SELECT
+        time_bucket(${bucketInterval}, time) as bucket,
+        entity_id,
+        count(*) as count,
+        avg(value) as avg,
+        min(value) as min,
+        max(value) as max,
+        sum(value) as sum,
+        first(value, time) as first,
+        last(value, time) as last,
+        stddev(value) as stddev
+      FROM time_series_data
+      WHERE entity_id = ANY(${entityIds})
+        AND time >= ${range.from.toISOString()}
+        AND time < ${range.to.toISOString()}
+      GROUP BY bucket, entity_id
+      ORDER BY bucket ${opts.orderBy.direction.toUpperCase() === 'DESC' ? sql`DESC` : sql`ASC`}, entity_id
+      LIMIT ${opts.limit}
+      OFFSET ${opts.offset}
+    ` as Array<{
+      bucket: string
+      entity_id: string
+      count: number
+      avg: number | null
+      min: number | null
+      max: number | null
+      sum: number | null
+      first: number | null
+      last: number | null
+      stddev: number | null
+    }>
+
+    return results.map((row) => ({
+      bucket: new Date(row.bucket),
+      entity_id: row.entity_id,
+      count: row.count,
+      avg: row.avg ?? undefined,
+      min: row.min ?? undefined,
+      max: row.max ?? undefined,
+      sum: row.sum ?? undefined,
+      first: row.first ?? undefined,
+      last: row.last ?? undefined,
+      stddev: row.stddev ?? undefined,
+    }))
+  } catch (error) {
+    throw new QueryError(
+      'Failed to calculate multi-entity aggregation',
+      error instanceof Error ? error : new Error(String(error)),
+      'SELECT time_bucket FROM time_series_data',
+      [entityIds, bucketInterval, range.from, range.to],
+    )
+  }
+}
+
+/**
+ * Validate entity ID format
+ */
+function validateEntityId(entityId: string): void {
+  if (!entityId || typeof entityId !== 'string' || entityId.trim().length === 0) {
+    throw new ValidationError('Entity ID is required and must be a non-empty string', 'entityId', entityId)
   }
 
-  if (!/^[A-Z0-9_]+$/.test(symbol)) {
-    throw new ValidationError('Symbol must contain only uppercase letters, numbers, and underscores', 'symbol', symbol)
+  if (entityId.length > 100) {
+    throw new ValidationError('Entity ID must be 100 characters or less', 'entityId', entityId)
+  }
+
+  if (!/^[A-Za-z0-9_.-]+$/.test(entityId)) {
+    throw new ValidationError('Entity ID must contain only letters, numbers, underscores, dots, and dashes', 'entityId', entityId)
   }
 }
 

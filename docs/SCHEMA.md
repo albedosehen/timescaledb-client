@@ -2,96 +2,98 @@
 
 ## Overview
 
-This document defines the database schema for the TimescaleDB client, including hypertable designs, indexing strategies, and TimescaleDB-specific optimizations for time-series financial data.
+This document defines the database schema for the TimescaleDB client, including hypertable designs, indexing strategies, and TimescaleDB-specific optimizations for generic time-series data applications.
 
 ## Core Hypertables
 
-### 1. Price Ticks Hypertable
+### 1. Time-Series Records Hypertable
 
-The `price_ticks` table stores individual price tick data with optimal partitioning for time-series queries.
+The `time_series_records` table stores individual time-series data points with optimal partitioning for time-series queries.
 
 ```sql
--- Primary hypertable for tick data
-CREATE TABLE price_ticks (
+-- Primary hypertable for time-series data
+CREATE TABLE time_series_records (
   time TIMESTAMPTZ NOT NULL,
-  symbol TEXT NOT NULL,
-  price DOUBLE PRECISION NOT NULL,
-  volume DOUBLE PRECISION DEFAULT NULL,
+  entity_id TEXT NOT NULL,
+  value DOUBLE PRECISION NOT NULL,
+  value2 DOUBLE PRECISION DEFAULT NULL,
+  value3 DOUBLE PRECISION DEFAULT NULL,
+  value4 DOUBLE PRECISION DEFAULT NULL,
 
   -- Metadata fields (optional)
-  exchange TEXT DEFAULT NULL,
+  metadata JSONB DEFAULT NULL,
   data_source TEXT DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
 
   -- Composite primary key ensuring uniqueness
-  PRIMARY KEY (symbol, time)
+  PRIMARY KEY (entity_id, time)
 ) WITH (
   tsdb.hypertable,
   tsdb.partition_column='time',
-  tsdb.segmentby='symbol',
+  tsdb.segmentby='entity_id',
   tsdb.orderby='time DESC',
   tsdb.chunk_interval='1 day'
 );
 
 -- Add table comment
-COMMENT ON TABLE price_ticks IS 'Time-series storage for individual price tick data';
-COMMENT ON COLUMN price_ticks.time IS 'Timestamp of the price tick (partition key)';
-COMMENT ON COLUMN price_ticks.symbol IS 'Financial instrument symbol (segment key)';
-COMMENT ON COLUMN price_ticks.price IS 'Price value (must be positive)';
-COMMENT ON COLUMN price_ticks.volume IS 'Trading volume (optional, non-negative)';
+COMMENT ON TABLE time_series_records IS 'Time-series storage for individual data points';
+COMMENT ON COLUMN time_series_records.time IS 'Timestamp of the data point (partition key)';
+COMMENT ON COLUMN time_series_records.entity_id IS 'Entity identifier (segment key)';
+COMMENT ON COLUMN time_series_records.value IS 'Primary value (required)';
+COMMENT ON COLUMN time_series_records.value2 IS 'Secondary value (optional)';
+COMMENT ON COLUMN time_series_records.value3 IS 'Tertiary value (optional)';
+COMMENT ON COLUMN time_series_records.value4 IS 'Quaternary value (optional)';
+COMMENT ON COLUMN time_series_records.metadata IS 'Additional metadata in JSON format';
 ```
 
-### 2. OHLC Data Hypertable
+### 2. Aggregate Records Hypertable
 
-The `ohlc_data` table stores candlestick data for different time intervals.
+The `aggregate_records` table stores pre-computed aggregate data for different time intervals.
 
 ```sql
--- Hypertable for OHLC/candlestick data
-CREATE TABLE ohlc_data (
+-- Hypertable for aggregate/summary data
+CREATE TABLE aggregate_records (
   time TIMESTAMPTZ NOT NULL,
-  symbol TEXT NOT NULL,
+  entity_id TEXT NOT NULL,
   interval_duration TEXT NOT NULL, -- '1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'
-  open DOUBLE PRECISION NOT NULL,
-  high DOUBLE PRECISION NOT NULL,
-  low DOUBLE PRECISION NOT NULL,
-  close DOUBLE PRECISION NOT NULL,
-  volume DOUBLE PRECISION DEFAULT NULL,
+  min_value DOUBLE PRECISION NOT NULL,
+  max_value DOUBLE PRECISION NOT NULL,
+  avg_value DOUBLE PRECISION NOT NULL,
+  sum_value DOUBLE PRECISION DEFAULT NULL,
+  count INTEGER NOT NULL,
 
   -- Derived fields for analysis
-  price_change DOUBLE PRECISION GENERATED ALWAYS AS (close - open) STORED,
-  price_change_percent DOUBLE PRECISION GENERATED ALWAYS AS (
-    CASE WHEN open > 0 THEN ((close - open) / open) * 100 ELSE NULL END
-  ) STORED,
+  value_range DOUBLE PRECISION GENERATED ALWAYS AS (max_value - min_value) STORED,
 
   -- Metadata
   data_source TEXT DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
 
   -- Composite primary key
-  PRIMARY KEY (symbol, interval_duration, time),
+  PRIMARY KEY (entity_id, interval_duration, time),
 
   -- Data integrity constraints
-  CONSTRAINT ohlc_price_relationship CHECK (
-    high >= GREATEST(open, close) AND
-    low <= LEAST(open, close) AND
-    open > 0 AND high > 0 AND low > 0 AND close > 0
+  CONSTRAINT aggregate_value_relationship CHECK (
+    max_value >= min_value AND
+    avg_value >= min_value AND
+    avg_value <= max_value AND
+    count > 0
   ),
-  CONSTRAINT ohlc_volume_non_negative CHECK (volume IS NULL OR volume >= 0),
-  CONSTRAINT ohlc_valid_interval CHECK (
+  CONSTRAINT aggregate_valid_interval CHECK (
     interval_duration IN ('1m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '12h', '1d', '1w', '1M')
   )
 ) WITH (
   tsdb.hypertable,
   tsdb.partition_column='time',
-  tsdb.segmentby='symbol',
+  tsdb.segmentby='entity_id',
   tsdb.orderby='time DESC',
   tsdb.chunk_interval='1 day'
 );
 
 -- Add table comments
-COMMENT ON TABLE ohlc_data IS 'Time-series storage for OHLC candlestick data';
-COMMENT ON COLUMN ohlc_data.interval_duration IS 'Time interval for the OHLC data (1m, 5m, 1h, 1d, etc.)';
-COMMENT ON CONSTRAINT ohlc_price_relationship ON ohlc_data IS 'Ensures OHLC price relationships are valid';
+COMMENT ON TABLE aggregate_records IS 'Time-series storage for pre-computed aggregate data';
+COMMENT ON COLUMN aggregate_records.interval_duration IS 'Time interval for the aggregate data (1m, 5m, 1h, 1d, etc.)';
+COMMENT ON CONSTRAINT aggregate_value_relationship ON aggregate_records IS 'Ensures aggregate value relationships are valid';
 ```
 
 ## Optimized Indexing Strategy
@@ -99,37 +101,42 @@ COMMENT ON CONSTRAINT ohlc_price_relationship ON ohlc_data IS 'Ensures OHLC pric
 ### Primary Performance Indexes
 
 ```sql
--- Symbol-time index for efficient single-symbol queries
-CREATE INDEX ix_price_ticks_symbol_time
-ON price_ticks (symbol, time DESC);
+-- Entity-time index for efficient single-entity queries
+CREATE INDEX ix_time_series_entity_time
+ON time_series_records (entity_id, time DESC);
 
-CREATE INDEX ix_ohlc_symbol_interval_time
-ON ohlc_data (symbol, interval_duration, time DESC);
+CREATE INDEX ix_aggregate_entity_interval_time
+ON aggregate_records (entity_id, interval_duration, time DESC);
 
--- Time-based indexes for cross-symbol queries
-CREATE INDEX ix_price_ticks_time
-ON price_ticks (time DESC);
+-- Time-based indexes for cross-entity queries
+CREATE INDEX ix_time_series_time
+ON time_series_records (time DESC);
 
-CREATE INDEX ix_ohlc_time
-ON ohlc_data (time DESC);
+CREATE INDEX ix_aggregate_time
+ON aggregate_records (time DESC);
 
--- Volume-based queries (for high-volume analysis)
-CREATE INDEX ix_price_ticks_volume_time
-ON price_ticks (volume DESC, time DESC)
-WHERE volume IS NOT NULL;
+-- Value-based queries (for high-value analysis)
+CREATE INDEX ix_time_series_value_time
+ON time_series_records (value DESC, time DESC)
+WHERE value IS NOT NULL;
 
--- Exchange-specific queries (if using exchange field)
-CREATE INDEX ix_price_ticks_exchange_symbol_time
-ON price_ticks (exchange, symbol, time DESC)
-WHERE exchange IS NOT NULL;
+-- Data source-specific queries (if using data_source field)
+CREATE INDEX ix_time_series_source_entity_time
+ON time_series_records (data_source, entity_id, time DESC)
+WHERE data_source IS NOT NULL;
 
--- Price range queries
-CREATE INDEX ix_price_ticks_price_time
-ON price_ticks (price, time DESC);
+-- Value range queries
+CREATE INDEX ix_time_series_value_range_time
+ON time_series_records (value, time DESC);
 
--- OHLC interval-specific queries
-CREATE INDEX ix_ohlc_interval_time
-ON ohlc_data (interval_duration, time DESC);
+-- Aggregate interval-specific queries
+CREATE INDEX ix_aggregate_interval_time
+ON aggregate_records (interval_duration, time DESC);
+
+-- Metadata queries (GIN index for JSONB)
+CREATE INDEX ix_time_series_metadata
+ON time_series_records USING GIN (metadata)
+WHERE metadata IS NOT NULL;
 ```
 
 ### Partial Indexes for Optimization
